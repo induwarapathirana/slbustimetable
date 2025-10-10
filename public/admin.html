@@ -3,415 +3,433 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Bus Timetables</title>
-    <!-- Tailwind CSS for styling -->
+    <title>Admin Panel - Bus Timetable</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Icon Library -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Style for draggable rows */
-        .dragging {
-            opacity: 0.5;
-            background: #f0f8ff;
-        }
-        tr {
-            cursor: grab;
-        }
-        /* Modal styles */
-        .modal {
-            transition: opacity 0.25s ease;
-        }
-        .modal-active {
-            overflow-x: hidden;
-            overflow-y: auto;
+        .ghost { opacity: 0.4; background: #c8ebfb; }
+        .sortable-chosen { cursor: grabbing; }
+        #config-warning {
+            display: none;
+            background-color: #fffbe6;
+            color: #92400e;
+            padding: 1rem;
+            border: 1px solid #fde68a;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
-<body class="bg-gray-200">
+<body class="bg-gray-100 font-sans">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
     <!-- Login Screen -->
-    <div id="login-screen" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-sm">
-            <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Admin Sign In</h2>
+    <div id="login-screen" class="min-h-screen flex items-center justify-center">
+        <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-sm">
+            <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Admin Login</h2>
+            <div id="config-warning">
+                <strong>Configuration Needed:</strong> Please paste your Firebase config object into the HTML file to enable the login form.
+            </div>
             <form id="login-form">
                 <div class="mb-4">
-                    <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
-                    <input type="text" id="username" value="admin" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <label for="email" class="block text-gray-700 mb-2">Email</label>
+                    <input type="email" id="email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                 </div>
                 <div class="mb-6">
-                    <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                    <input type="password" id="password" value="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <label for="password" class="block text-gray-700 mb-2">Password</label>
+                    <input type="password" id="password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">
-                    Sign In
-                </button>
+                <button type="submit" id="login-button" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-300">Login</button>
                 <p id="login-error" class="text-red-500 text-sm mt-4 text-center"></p>
             </form>
         </div>
     </div>
-    
-    <!-- Main Dashboard (hidden by default) -->
-    <div id="dashboard" class="hidden">
-        <!-- Header -->
+
+    <!-- Main Admin Dashboard (hidden by default) -->
+    <div id="admin-dashboard" class="hidden">
         <header class="bg-white shadow-md">
-            <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-                <h1 class="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
-                <button id="logout-btn" class="text-sm text-indigo-600 hover:underline">Logout</button>
-            </div>
+            <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">Bus Timetable Dashboard</h1>
+                <button id="logout-button" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition">Logout</button>
+            </nav>
         </header>
 
-        <main class="container mx-auto p-4 md:p-6">
-            <!-- Add Bus Section -->
-            <div class="bg-white rounded-lg shadow p-6 mb-8">
-                <h2 class="text-xl font-semibold mb-4 text-gray-800 border-b pb-2">Add New Bus Route</h2>
-                <form id="add-bus-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input type="text" name="route" placeholder="Route No. (e.g., X93)" class="p-2 border rounded" required>
-                    <input type="text" name="operator" placeholder="Operator" class="p-2 border rounded" required>
-                    <input type="text" name="departsFrom" placeholder="From" class="p-2 border rounded" required>
-                    <input type="text" name="arrivesAt" placeholder="To" class="p-2 border rounded" required>
-                    <input type="time" name="departureTime" class="p-2 border rounded" required>
-                    <input type="time" name="arrivalTime" class="p-2 border rounded" required>
-                    <input type="text" name="price" placeholder="Price (e.g., £25.00)" class="p-2 border rounded" required>
-                    <input type="text" name="stops" placeholder="Stops (comma-separated)" class="md:col-span-2 p-2 border rounded" required>
-                    <button type="submit" class="bg-indigo-600 text-white font-bold p-2 rounded hover:bg-indigo-700 transition duration-300">
-                        <i class="fas fa-plus mr-2"></i> Add Bus
-                    </button>
+        <main class="container mx-auto p-6">
+            <!-- Add Bus Form -->
+            <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Add New Bus Route</h2>
+                <form id="add-bus-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Form fields -->
+                    <input type="text" id="add-route" placeholder="Route Name (e.g., 100)" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="add-operator" placeholder="Operator (e.g., City Bus)" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="add-departsFrom" placeholder="Departs From" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="add-arrivesAt" placeholder="Arrives At" class="px-3 py-2 border rounded" required>
+                    <input type="time" id="add-departureTime" class="px-3 py-2 border rounded" required>
+                    <input type="time" id="add-arrivalTime" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="add-price" placeholder="Price (e.g., £5.50)" class="px-3 py-2 border rounded">
+                    <textarea id="add-stops" placeholder="Mid-stops (comma-separated)" class="md:col-span-2 px-3 py-2 border rounded"></textarea>
+                    
+                    <div class="lg:col-span-3">
+                        <label class="block text-gray-700 mb-2 font-medium">Availability:</label>
+                        <div id="add-availability" class="flex flex-wrap gap-4 items-center">
+                            <!-- Checkboxes will be inserted here by JS -->
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-3">
+                        <button type="submit" class="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition">Add Bus</button>
+                    </div>
                 </form>
             </div>
 
-            <!-- Bus Timetables List -->
-            <div class="bg-white rounded-lg shadow overflow-hidden">
-                <div class="p-6 border-b">
-                     <h2 class="text-xl font-semibold text-gray-800">Current Bus Timetables</h2>
-                     <p class="text-sm text-gray-600 mt-1">Drag and drop rows to change the order.</p>
-                </div>
+            <!-- Bus Timetable List -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Current Timetable</h2>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-full text-sm">
-                        <thead class="bg-gray-100 text-gray-600 uppercase">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50">
                             <tr>
-                                <th class="py-3 px-4 text-left">Route</th>
-                                <th class="py-3 px-4 text-left">From</th>
-                                <th class="py-3 px-4 text-left">To</th>
-                                <th class="py-3 px-4 text-left">Departure</th>
-                                <th class="py-3 px-4 text-left">Arrival</th>
-                                <th class="py-3 px-4 text-center">Actions</th>
+                                <th class="p-3">Route</th>
+                                <th class="p-3">From</th>
+                                <th class="p-3">To</th>
+                                <th class="p-3">Departure</th>
+                                <th class="p-3">Arrival</th>
+                                <th class="p-3">Availability</th>
+                                <th class="p-3 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="bus-table-body" class="text-gray-700">
-                            <!-- Bus rows will be injected here -->
+                        <tbody id="bus-list" class="divide-y">
+                            <!-- Bus rows will be populated here by JS -->
                         </tbody>
                     </table>
                 </div>
             </div>
         </main>
     </div>
-    
+
     <!-- Edit Modal -->
-    <div id="edit-modal" class="modal pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center opacity-0">
-        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50"></div>
-        <div class="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded shadow-lg z-50 overflow-y-auto">
-            <div class="modal-content py-4 text-left px-6">
-                <div class="flex justify-between items-center pb-3">
-                    <p class="text-2xl font-bold">Edit Bus Route</p>
-                    <button id="modal-close" class="modal-close cursor-pointer z-50">
-                        <i class="fas fa-times"></i>
-                    </button>
+    <div id="edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl">
+            <h2 class="text-xl font-semibold mb-6">Edit Bus Route</h2>
+            <form id="edit-bus-form">
+                <input type="hidden" id="edit-id">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <input type="text" id="edit-route" placeholder="Route" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="edit-operator" placeholder="Operator" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="edit-departsFrom" placeholder="Departs From" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="edit-arrivesAt" placeholder="Arrives At" class="px-3 py-2 border rounded" required>
+                    <input type="time" id="edit-departureTime" class="px-3 py-2 border rounded" required>
+                    <input type="time" id="edit-arrivalTime" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="edit-price" placeholder="Price" class="px-3 py-2 border rounded">
+                    <textarea id="edit-stops" placeholder="Stops" class="md:col-span-2 px-3 py-2 border rounded"></textarea>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-gray-700 mb-2 font-medium">Availability:</label>
+                        <div id="edit-availability" class="flex flex-wrap gap-4 items-center">
+                           <!-- Checkboxes will be populated here -->
+                        </div>
+                    </div>
                 </div>
-                <form id="edit-bus-form">
-                    <!-- Form fields will be populated by JS -->
-                </form>
-            </div>
+                <div class="mt-8 flex justify-end space-x-4">
+                    <button type="button" id="cancel-edit" class="bg-gray-300 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-400">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">Save Changes</button>
+                </div>
+            </form>
         </div>
     </div>
 
+
     <script>
-        // --- CONFIG ---
-        const API_URL = 'http://localhost:3000/api'; // Change this URL when you deploy
-        let authToken = sessionStorage.getItem('authToken');
+        // --- IMPORTANT: CONFIGURE FIREBASE ---
+        const firebaseConfig = {
+            // PASTE YOUR FIREBASE CONFIG OBJECT HERE
+            // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
-        // --- DOM ELEMENTS ---
-        const loginScreen = document.getElementById('login-screen');
-        const loginForm = document.getElementById('login-form');
-        const loginError = document.getElementById('login-error');
-        const dashboard = document.getElementById('dashboard');
-        const logoutBtn = document.getElementById('logout-btn');
-        
-        const tableBody = document.getElementById('bus-table-body');
-        const addForm = document.getElementById('add-bus-form');
-        const editModal = document.getElementById('edit-modal');
-        const editForm = document.getElementById('edit-bus-form');
-        const modalClose = document.getElementById('modal-close');
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
+  authDomain: "sl-bus-timetable-app.firebaseapp.com",
+  projectId: "sl-bus-timetable-app",
+  storageBucket: "sl-bus-timetable-app.firebasestorage.app",
+  messagingSenderId: "107324674333",
+  appId: "1:107324674333:web:2058e8958f2c1dfd0c91f4",
+  measurementId: "G-JEBZ0J484N"
+};
 
-        // --- AUTHENTICATION ---
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            loginError.textContent = '';
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+            apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o", // Added a placeholder key to check against
+        };
 
-            try {
-                const response = await fetch(`${API_URL}/login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password }),
-                });
+        // --- SCRIPT INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const warningDiv = document.getElementById('config-warning');
+            const loginButton = document.getElementById('login-button');
 
-                if (!response.ok) {
-                    throw new Error('Invalid username or password.');
+            // 1. Check if Firebase config is still a placeholder
+            if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "PASTE_HERE") {
+                warningDiv.style.display = 'block';
+                loginButton.disabled = true;
+                loginButton.classList.add('opacity-50', 'cursor-not-allowed');
+                console.error("Firebase config is missing. Please paste it into admin.html.");
+                return; // Stop execution if config is missing
+            }
+
+            // 2. Initialize Firebase only if config is valid
+            firebase.initializeApp(firebaseConfig);
+            const auth = firebase.auth();
+            const db = firebase.firestore();
+            const busesCollection = db.collection('buses');
+
+            // 3. Now, run the main application logic
+            runAdminApp(auth, db, busesCollection);
+        });
+
+        function runAdminApp(auth, db, busesCollection) {
+            // DOM Elements
+            const loginScreen = document.getElementById('login-screen');
+            const adminDashboard = document.getElementById('admin-dashboard');
+            const loginForm = document.getElementById('login-form');
+            const loginError = document.getElementById('login-error');
+            const logoutButton = document.getElementById('logout-button');
+            const busList = document.getElementById('bus-list');
+            const addBusForm = document.getElementById('add-bus-form');
+            const editModal = document.getElementById('edit-modal');
+            const editBusForm = document.getElementById('edit-bus-form');
+            const cancelEditButton = document.getElementById('cancel-edit');
+
+            const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+            // --- AUTHENTICATION LOGIC ---
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    loginScreen.classList.add('hidden');
+                    adminDashboard.classList.remove('hidden');
+                    fetchAndDisplayBuses();
+                } else {
+                    loginScreen.classList.remove('hidden');
+                    adminDashboard.classList.add('hidden');
                 }
-                const data = await response.json();
-                authToken = data.token;
-                sessionStorage.setItem('authToken', authToken);
-                showDashboard();
-            } catch (error) {
-                loginError.textContent = error.message;
-            }
-        });
-
-        logoutBtn.addEventListener('click', () => {
-            authToken = null;
-            sessionStorage.removeItem('authToken');
-            loginScreen.style.display = 'flex';
-            dashboard.classList.add('hidden');
-        });
-
-        const showDashboard = () => {
-            loginScreen.style.display = 'none';
-            dashboard.classList.remove('hidden');
-            fetchAndRenderTable();
-        };
-
-        // Check if user is already logged in
-        if (authToken) {
-            showDashboard();
-        }
-
-        // --- API HELPERS ---
-        const fetchWithAuth = async (url, options = {}) => {
-            const headers = {
-                ...options.headers,
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`,
-            };
-            const response = await fetch(url, { ...options, headers });
-            if (response.status === 401) { // Unauthorized
-                logoutBtn.click();
-                throw new Error('Session expired. Please log in again.');
-            }
-            if (!response.ok) {
-                 const err = await response.json();
-                 throw new Error(err.message || 'An API error occurred.');
-            }
-            return response.json();
-        };
-        
-        // --- RENDER FUNCTION ---
-        const fetchAndRenderTable = async () => {
-            try {
-                const buses = await fetchWithAuth(`${API_URL}/buses`);
-                tableBody.innerHTML = '';
-                buses.forEach((bus, index) => {
-                    const row = document.createElement('tr');
-                    row.className = 'border-b border-gray-200 hover:bg-gray-50';
-                    row.setAttribute('draggable', 'true');
-                    row.dataset.id = bus.id;
-                    row.dataset.index = index;
-
-                    row.innerHTML = `
-                        <td class="py-3 px-4">${bus.route} <span class="text-xs text-gray-500">(${bus.operator})</span></td>
-                        <td class="py-3 px-4">${bus.departsFrom}</td>
-                        <td class="py-3 px-4">${bus.arrivesAt}</td>
-                        <td class="py-3 px-4 font-mono">${bus.departureTime}</td>
-                        <td class="py-3 px-4 font-mono">${bus.arrivalTime}</td>
-                        <td class="py-3 px-4 text-center">
-                            <button class="edit-btn text-blue-500 hover:text-blue-700 p-1" data-id="${bus.id}"><i class="fas fa-edit"></i></button>
-                            <button class="delete-btn text-red-500 hover:text-red-700 p-1" data-id="${bus.id}"><i class="fas fa-trash"></i></button>
-                        </td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-                addEventListeners();
-            } catch (error) {
-                alert(`Error fetching data: ${error.message}`);
-            }
-        };
-
-        // --- CRUD OPERATIONS ---
-        
-        // Add Bus
-        addForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(addForm);
-            const newBus = {
-                route: formData.get('route'),
-                operator: formData.get('operator'),
-                departsFrom: formData.get('departsFrom'),
-                arrivesAt: formData.get('arrivesAt'),
-                departureTime: formData.get('departureTime'),
-                arrivalTime: formData.get('arrivalTime'),
-                price: formData.get('price'),
-                stops: formData.get('stops').split(',').map(s => s.trim()),
-            };
-            
-            try {
-                await fetchWithAuth(`${API_URL}/buses`, {
-                    method: 'POST',
-                    body: JSON.stringify(newBus),
-                });
-                addForm.reset();
-                fetchAndRenderTable();
-            } catch (error) {
-                alert(`Error adding bus: ${error.message}`);
-            }
-        });
-
-        // Handle Delete and Edit button clicks
-        const handleTableClick = async (e) => {
-            const target = e.target.closest('button');
-            if (!target) return;
-
-            const busId = Number(target.dataset.id);
-
-            if (target.classList.contains('delete-btn')) {
-                if (confirm('Are you sure you want to delete this route?')) {
-                    try {
-                        await fetchWithAuth(`${API_URL}/buses/${busId}`, { method: 'DELETE' });
-                        fetchAndRenderTable();
-                    } catch (error) {
-                        alert(`Error deleting bus: ${error.message}`);
-                    }
-                }
-            }
-
-            if (target.classList.contains('edit-btn')) {
-                openEditModal(busId);
-            }
-        };
-
-        // --- EDIT MODAL ---
-        const openEditModal = async (busId) => {
-            try {
-                const bus = await fetchWithAuth(`${API_URL}/buses/${busId}`);
-                editForm.innerHTML = `
-                    <input type="hidden" name="id" value="${bus.id}">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div><label class="block text-sm">Route</label><input type="text" name="route" value="${bus.route}" class="w-full p-2 border rounded mt-1"></div>
-                        <div><label class="block text-sm">Operator</label><input type="text" name="operator" value="${bus.operator}" class="w-full p-2 border rounded mt-1"></div>
-                        <div><label class="block text-sm">From</label><input type="text" name="departsFrom" value="${bus.departsFrom}" class="w-full p-2 border rounded mt-1"></div>
-                        <div><label class="block text-sm">To</label><input type="text" name="arrivesAt" value="${bus.arrivesAt}" class="w-full p-2 border rounded mt-1"></div>
-                        <div><label class="block text-sm">Departure</label><input type="time" name="departureTime" value="${bus.departureTime}" class="w-full p-2 border rounded mt-1"></div>
-                        <div><label class="block text-sm">Arrival</label><input type="time" name="arrivalTime" value="${bus.arrivalTime}" class="w-full p-2 border rounded mt-1"></div>
-                        <div class="col-span-2"><label class="block text-sm">Price</label><input type="text" name="price" value="${bus.price}" class="w-full p-2 border rounded mt-1"></div>
-                        <div class="col-span-2"><label class="block text-sm">Stops (comma-separated)</label><input type="text" name="stops" value="${bus.stops.join(', ')}" class="w-full p-2 border rounded mt-1"></div>
-                    </div>
-                    <div class="flex justify-end pt-4">
-                        <button type="submit" class="bg-green-600 text-white font-bold py-2 px-4 rounded hover:bg-green-700">Save Changes</button>
-                    </div>
-                `;
-                editModal.classList.remove('pointer-events-none', 'opacity-0');
-                document.body.classList.add('modal-active');
-            } catch (error) {
-                alert(`Error fetching bus details: ${error.message}`);
-            }
-        };
-
-        const closeEditModal = () => {
-            editModal.classList.add('pointer-events-none', 'opacity-0');
-            document.body.classList.remove('modal-active');
-        };
-        
-        editForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(editForm);
-            const busId = Number(formData.get('id'));
-            const updatedBus = {
-                route: formData.get('route'),
-                operator: formData.get('operator'),
-                departsFrom: formData.get('departsFrom'),
-                arrivesAt: formData.get('arrivesAt'),
-                departureTime: formData.get('departureTime'),
-                arrivalTime: formData.get('arrivalTime'),
-                price: formData.get('price'),
-                stops: formData.get('stops').split(',').map(s => s.trim()),
-            };
-
-            try {
-                await fetchWithAuth(`${API_URL}/buses/${busId}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(updatedBus),
-                });
-                closeEditModal();
-                fetchAndRenderTable();
-            } catch (error) {
-                alert(`Error updating bus: ${error.message}`);
-            }
-        });
-
-        modalClose.addEventListener('click', closeEditModal);
-
-        // --- DRAG AND DROP LOGIC ---
-        let dragStartIndex;
-
-        const reorderBuses = async (orderedIds) => {
-             try {
-                await fetchWithAuth(`${API_URL}/buses/order`, {
-                    method: 'POST',
-                    body: JSON.stringify({ orderedIds }),
-                });
-                fetchAndRenderTable();
-            } catch (error) {
-                alert(`Error reordering buses: ${error.message}`);
-                fetchAndRenderTable(); // Re-render to revert visual change
-            }
-        };
-
-        const dragStart = (e) => {
-            dragStartIndex = +e.target.dataset.index;
-            e.target.classList.add('dragging');
-        };
-
-        const dragOver = (e) => e.preventDefault();
-
-        const drop = (e) => {
-            const dropTarget = e.target.closest('tr');
-            if (!dropTarget) return;
-
-            const dragEndIndex = +dropTarget.dataset.index;
-            const rows = Array.from(tableBody.querySelectorAll('tr'));
-            
-            // Reorder the rows visually first for responsiveness
-            const draggedRow = rows[dragStartIndex];
-            const targetRow = rows[dragEndIndex];
-
-            if (dragStartIndex < dragEndIndex) {
-                targetRow.after(draggedRow);
-            } else {
-                targetRow.before(draggedRow);
-            }
-
-            // Get the new order of IDs and send to backend
-            const orderedIds = Array.from(tableBody.querySelectorAll('tr')).map(row => Number(row.dataset.id));
-            reorderBuses(orderedIds);
-        };
-        
-        // --- ATTACH ALL EVENT LISTENERS ---
-        const addEventListeners = () => {
-            document.querySelectorAll('#bus-table-body tr').forEach(row => {
-                row.addEventListener('dragstart', dragStart);
-                row.addEventListener('dragover', dragOver);
-                row.addEventListener('drop', drop);
-                row.addEventListener('dragend', () => row.classList.remove('dragging'));
             });
-            tableBody.addEventListener('click', handleTableClick);
-        };
-        
+
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                loginError.textContent = '';
+                auth.signInWithEmailAndPassword(email, password)
+                    .catch(error => {
+                        loginError.textContent = error.message;
+                    });
+            });
+
+            logoutButton.addEventListener('click', () => {
+                auth.signOut();
+            });
+
+            // --- UI HELPER FUNCTIONS ---
+            const createDayCheckboxes = (containerId, prefix = '') => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                daysOfWeek.forEach(day => {
+                    container.innerHTML += `
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" name="${prefix}day" value="${day}" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span>${day}</span>
+                        </label>
+                    `;
+                });
+                container.innerHTML += `
+                    <label class="flex items-center space-x-2 font-bold">
+                        <input type="checkbox" id="${prefix}select-all-days" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        <span>All Days</span>
+                    </label>
+                `;
+                document.getElementById(`${prefix}select-all-days`).addEventListener('change', (e) => {
+                    document.querySelectorAll(`input[name="${prefix}day"]`).forEach(checkbox => {
+                        checkbox.checked = e.target.checked;
+                    });
+                });
+            };
+
+            const getSelectedDays = (prefix = '') => {
+                const selected = [];
+                document.querySelectorAll(`input[name="${prefix}day"]:checked`).forEach(checkbox => {
+                    selected.push(checkbox.value);
+                });
+                return selected;
+            };
+
+            // Initialize day checkboxes
+            createDayCheckboxes('add-availability', 'add-');
+            createDayCheckboxes('edit-availability', 'edit-');
+
+            // --- FIRESTORE CRUD OPERATIONS ---
+            let sortableInstance = null;
+            
+            const fetchAndDisplayBuses = async () => {
+                busList.innerHTML = '<tr><td colspan="7" class="text-center p-4">Loading...</td></tr>';
+                try {
+                    const snapshot = await busesCollection.orderBy('sortOrder').get();
+                    if (snapshot.empty) {
+                        busList.innerHTML = '<tr><td colspan="7" class="text-center p-4">No bus routes found. Add one above.</td></tr>';
+                        return;
+                    }
+                    
+                    busList.innerHTML = '';
+                    snapshot.forEach(doc => {
+                        const bus = { id: doc.id, ...doc.data() };
+                        const row = document.createElement('tr');
+                        row.dataset.id = bus.id;
+                        row.className = 'hover:bg-gray-50 cursor-move';
+                        row.innerHTML = `
+                            <td class="p-3">${bus.route}</td>
+                            <td class="p-3">${bus.departsFrom}</td>
+                            <td class="p-3">${bus.arrivesAt}</td>
+                            <td class="p-3">${bus.departureTime}</td>
+                            <td class="p-3">${bus.arrivalTime}</td>
+                            <td class="p-3 text-sm">${(bus.availability || []).join(', ')}</td>
+                            <td class="p-3 text-right">
+                                <button class="edit-btn bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600" data-id="${bus.id}">Edit</button>
+                                <button class="delete-btn bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 ml-2" data-id="${bus.id}">Delete</button>
+                            </td>
+                        `;
+                        busList.appendChild(row);
+                    });
+
+                    // Initialize SortableJS for drag-and-drop
+                    if(sortableInstance) sortableInstance.destroy();
+                    sortableInstance = new Sortable(busList, {
+                        animation: 150,
+                        ghostClass: 'ghost',
+                        chosenClass: 'sortable-chosen',
+                        onEnd: async (evt) => {
+                            const orderedIds = Array.from(busList.children).map(row => row.dataset.id);
+                            const batch = db.batch();
+                            orderedIds.forEach((id, index) => {
+                                const docRef = busesCollection.doc(id);
+                                batch.update(docRef, { sortOrder: index });
+                            });
+                            await batch.commit();
+                        }
+                    });
+
+                } catch (error) {
+                    console.error("Error fetching buses: ", error);
+                    busList.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-red-500">Failed to load data.</td></tr>';
+                }
+            };
+
+            // Add Bus
+            addBusForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const stops = document.getElementById('add-stops').value.split(',').map(s => s.trim()).filter(Boolean);
+                const availability = getSelectedDays('add-');
+
+                // Get the highest current sortOrder to append the new bus to the end
+                const lastBusSnapshot = await busesCollection.orderBy('sortOrder', 'desc').limit(1).get();
+                const lastOrder = lastBusSnapshot.empty ? -1 : lastBusSnapshot.docs[0].data().sortOrder;
+
+                const newBus = {
+                    route: document.getElementById('add-route').value,
+                    operator: document.getElementById('add-operator').value,
+                    departsFrom: document.getElementById('add-departsFrom').value,
+                    arrivesAt: document.getElementById('add-arrivesAt').value,
+                    departureTime: document.getElementById('add-departureTime').value,
+                    arrivalTime: document.getElementById('add-arrivalTime').value,
+                    price: document.getElementById('add-price').value,
+                    stops: stops,
+                    availability: availability,
+                    sortOrder: lastOrder + 1
+                };
+                
+                try {
+                    await busesCollection.add(newBus);
+                    addBusForm.reset();
+                    document.getElementById('add-select-all-days').checked = false;
+                    fetchAndDisplayBuses();
+                } catch (error) {
+                    console.error("Error adding bus: ", error);
+                }
+            });
+
+            // Edit and Delete Event Delegation
+            busList.addEventListener('click', async (e) => {
+                const id = e.target.dataset.id;
+                if (e.target.classList.contains('delete-btn')) {
+                    if (confirm('Are you sure you want to delete this route?')) {
+                        try {
+                            await busesCollection.doc(id).delete();
+                            fetchAndDisplayBuses();
+                        } catch (error) {
+                            console.error("Error deleting bus: ", error);
+                        }
+                    }
+                } else if (e.target.classList.contains('edit-btn')) {
+                    const doc = await busesCollection.doc(id).get();
+                    const bus = doc.data();
+                    document.getElementById('edit-id').value = id;
+                    document.getElementById('edit-route').value = bus.route;
+                    document.getElementById('edit-operator').value = bus.operator;
+                    document.getElementById('edit-departsFrom').value = bus.departsFrom;
+                    document.getElementById('edit-arrivesAt').value = bus.arrivesAt;
+                    document.getElementById('edit-departureTime').value = bus.departureTime;
+                    document.getElementById('edit-arrivalTime').value = bus.arrivalTime;
+                    document.getElementById('edit-price').value = bus.price;
+                    document.getElementById('edit-stops').value = (bus.stops || []).join(', ');
+                    
+                    // Set availability checkboxes
+                    document.querySelectorAll('input[name="edit-day"]').forEach(checkbox => {
+                        checkbox.checked = (bus.availability || []).includes(checkbox.value);
+                    });
+                    document.getElementById('edit-select-all-days').checked = (bus.availability || []).length === 7;
+
+                    editModal.classList.remove('hidden');
+                }
+            });
+            
+            // Save Edited Bus
+            editBusForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('edit-id').value;
+                const stops = document.getElementById('edit-stops').value.split(',').map(s => s.trim()).filter(Boolean);
+                const availability = getSelectedDays('edit-');
+
+                const updatedBus = {
+                    route: document.getElementById('edit-route').value,
+                    operator: document.getElementById('edit-operator').value,
+                    departsFrom: document.getElementById('edit-departsFrom').value,
+                    arrivesAt: document.getElementById('edit-arrivesAt').value,
+                    departureTime: document.getElementById('edit-departureTime').value,
+                    arrivalTime: document.getElementById('edit-arrivalTime').value,
+                    price: document.getElementById('edit-price').value,
+                    stops: stops,
+                    availability: availability
+                };
+                
+                try {
+                    await busesCollection.doc(id).update(updatedBus);
+                    editModal.classList.add('hidden');
+                    fetchAndDisplayBuses();
+                } catch (error) {
+                    console.error("Error updating bus: ", error);
+                }
+            });
+
+            cancelEditButton.addEventListener('click', () => {
+                editModal.classList.add('hidden');
+            });
+        }
     </script>
 </body>
 </html>

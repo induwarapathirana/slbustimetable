@@ -1,0 +1,87 @@
+[
+  {
+    "id": 1,
+    "route": "X93",
+    "operator": "National Express",
+    "departsFrom": "London Victoria",
+    "arrivesAt": "Manchester Piccadilly",
+    "departureTime": "08:00",
+    "arrivalTime": "12:30",
+    "price": "£25.00",
+    "stops": [
+      "Milton Keynes",
+      "Birmingham Coach Station",
+      "Stoke-on-Trent"
+    ],
+    "availability": [
+      "Monday",
+      "Wednesday",
+      "Friday",
+      "Saturday"
+    ]
+  },
+  {
+    "id": 2,
+    "route": "M10",
+    "operator": "MegaBus",
+    "departsFrom": "London Victoria",
+    "arrivesAt": "Manchester Piccadilly",
+    "departureTime": "09:30",
+    "arrivalTime": "14:15",
+    "price": "£22.50",
+    "stops": [
+      "Luton Airport",
+      "Coventry",
+      "Birmingham Airport"
+    ],
+    "availability": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday"
+    ]
+  },
+  {
+    "id": 3,
+    "route": "G1",
+    "operator": "GoAhead",
+    "departsFrom": "Oxford City Centre",
+    "arrivesAt": "Cambridge City Centre",
+    "departureTime": "10:00",
+    "arrivalTime": "12:30",
+    "price": "£15.00",
+    "stops": [
+      "Bicester",
+      "Milton Keynes",
+      "Bedford"
+    ],
+    "availability": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday"
+    ]
+  },
+  {
+    "id": 4,
+    "route": "S5",
+    "operator": "Stagecoach",
+    "departsFrom": "Bristol Temple Meads",
+    "arrivesAt": "Birmingham New Street",
+    "departureTime": "11:00",
+    "arrivalTime": "13:00",
+    "price": "£18.00",
+    "stops": [
+      "Gloucester",
+      "Worcester"
+    ],
+    "availability": [
+      "Saturday",
+      "Sunday"
+    ]
+  }
+]
