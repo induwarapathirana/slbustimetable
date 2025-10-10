@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Bus Timetable Search</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Icon Library -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom animation for loading spinner */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loader {
+            border: 4px solid rgba(0, 0, 0, .1);
+            border-left-color: #4f46e5;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        /* Simple transition for collapsing stop points */
+        .stop-points {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out;
+        }
+        .stop-points.show {
+            max-height: 500px; /* Adjust as needed */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <!-- Header Section -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Find Your Bus</h1>
+            <p class="text-gray-600 mt-2">Search for bus services between any two locations in the UK.</p>
+        </header>
+
+        <!-- Search Form -->
+        <div class="bg-white rounded-lg shadow-lg p-6 md:p-8 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div class="md:col-span-1 relative">
+                    <label for="from-station" class="block text-sm font-medium text-gray-700 mb-1">From</label>
+                    <input type="text" id="from-station" placeholder="e.g., London Victoria" class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off">
+                    <div id="from-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 hidden shadow-lg max-h-60 overflow-y-auto"></div>
+                </div>
+                <div class="md:col-span-1 relative">
+                    <label for="to-station" class="block text-sm font-medium text-gray-700 mb-1">To</label>
+                    <input type="text" id="to-station" placeholder="e.g., Manchester" class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" autocomplete="off">
+                    <div id="to-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 hidden shadow-lg max-h-60 overflow-y-auto"></div>
+                </div>
+                <div class="md:col-span-1">
+                    <label for="travel-date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input type="date" id="travel-date" class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="md:col-span-1">
+                    <button id="search-btn" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-md hover:bg-indigo-700 transition duration-300 flex items-center justify-center">
+                        <i class="fas fa-search mr-2"></i> Search
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Results Section -->
+        <main id="search-results">
+            <!-- Results will be injected here by JavaScript -->
+            <!-- Initial message -->
+            <div id="initial-message" class="text-center text-gray-500 py-10">
+                <i class="fas fa-bus-alt fa-3x mb-4"></i>
+                <p>Enter your journey details above to find available buses.</p>
+            </div>
+            <!-- Loading spinner -->
+            <div id="loading-spinner" class="hidden justify-center py-10">
+                <div class="loader"></div>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        // --- MOCK BACKEND DATABASE ---
+        // In a real application, this data would come from your backend server.
+        const busDatabase = [
+            { 
+                id: 1,
+                route: 'X93', 
+                operator: 'National Express',
+                departsFrom: 'London Victoria', 
+                arrivesAt: 'Manchester Piccadilly',
+                departureTime: '08:00',
+                arrivalTime: '12:30',
+                duration: '4h 30m',
+                price: '£25.00',
+                stops: ['Milton Keynes', 'Birmingham Coach Station', 'Stoke-on-Trent']
+            },
+            { 
+                id: 2,
+                route: 'M10', 
+                operator: 'MegaBus',
+                departsFrom: 'London Victoria', 
+                arrivesAt: 'Manchester Piccadilly',
+                departureTime: '09:30',
+                arrivalTime: '14:15',
+                duration: '4h 45m',
+                price: '£22.50',
+                stops: ['Luton Airport', 'Coventry', 'Birmingham Airport']
+            },
+            { 
+                id: 3,
+                route: 'G1', 
+                operator: 'GoAhead',
+                departsFrom: 'Oxford City Centre', 
+                arrivesAt: 'Cambridge City Centre',
+                departureTime: '10:00',
+                arrivalTime: '12:30',
+                duration: '2h 30m',
+                price: '£15.00',
+                stops: ['Bicester', 'Milton Keynes', 'Bedford']
+            },
+            {
+                id: 4,
+                route: 'S5',
+                operator: 'Stagecoach',
+                departsFrom: 'Bristol Temple Meads',
+                arrivesAt: 'Birmingham New Street',
+                departureTime: '11:00',
+                arrivalTime: '13:00',
+                duration: '2h 00m',
+                price: '£18.00',
+                stops: ['Gloucester', 'Worcester']
+            }
+        ];
+
+        // --- DOM ELEMENTS ---
+        const searchBtn = document.getElementById('search-btn');
+        const fromInput = document.getElementById('from-station');
+        const toInput = document.getElementById('to-station');
+        const dateInput = document.getElementById('travel-date');
+        const resultsContainer = document.getElementById('search-results');
+        const initialMessage = document.getElementById('initial-message');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const fromSuggestions = document.getElementById('from-suggestions');
+        const toSuggestions = document.getElementById('to-suggestions');
+
+        // Set default date to today
+        dateInput.valueAsDate = new Date();
+
+        // --- EVENT LISTENERS ---
+        searchBtn.addEventListener('click', searchBuses);
+
+        // --- AUTOCOMPLETE LOGIC ---
+
+        // 1. Get all unique locations from the database
+        const allLocations = [...new Set([
+            ...busDatabase.map(bus => bus.departsFrom),
+            ...busDatabase.map(bus => bus.arrivesAt)
+        ])].sort();
+
+        // 2. Add event listeners for input fields
+        fromInput.addEventListener('input', () => getSuggestions(fromInput.value, fromSuggestions, fromInput));
+        toInput.addEventListener('input', () => getSuggestions(toInput.value, toSuggestions, toInput));
+
+        // 3. Hide suggestions when clicking outside the relevant input
+        document.addEventListener('click', (e) => {
+            if (e.target !== fromInput) {
+                fromSuggestions.classList.add('hidden');
+            }
+            if (e.target !== toInput) {
+                toSuggestions.classList.add('hidden');
+            }
+        });
+
+        /**
+         * Filters locations and shows suggestions.
+         * @param {string} inputValue The text from the input field.
+         * @param {HTMLElement} suggestionsContainer The div to show suggestions in.
+         * @param {HTMLElement} inputElement The input field itself.
+         */
+        function getSuggestions(inputValue, suggestionsContainer, inputElement) {
+            const inputText = inputValue.trim().toLowerCase();
+            suggestionsContainer.innerHTML = '';
+
+            if (inputText.length === 0) {
+                suggestionsContainer.classList.add('hidden');
+                return;
+            }
+
+            const filteredLocations = allLocations.filter(loc => loc.toLowerCase().includes(inputText));
+
+            if (filteredLocations.length > 0) {
+                filteredLocations.forEach(location => {
+                    const suggestionItem = document.createElement('div');
+                    suggestionItem.className = 'p-3 hover:bg-indigo-100 cursor-pointer text-sm';
+                    suggestionItem.textContent = location;
+                    suggestionItem.addEventListener('click', () => {
+                        inputElement.value = location;
+                        suggestionsContainer.classList.add('hidden');
+                    });
+                    suggestionsContainer.appendChild(suggestionItem);
+                });
+                suggestionsContainer.classList.remove('hidden');
+            } else {
+                suggestionsContainer.classList.add('hidden');
+            }
+        }
+
+        // --- FUNCTIONS ---
+
+        /**
+         * Simulates searching for buses.
+         * In a real app, this would make a fetch() call to a backend API.
+         */
+        function searchBuses() {
+            const from = fromInput.value.trim().toLowerCase();
+            const to = toInput.value.trim().toLowerCase();
+
+            if (!from || !to) {
+                alert('Please enter both a departure and arrival station.');
+                return;
+            }
+
+            // Show loading spinner and hide initial message
+            initialMessage.style.display = 'none';
+            loadingSpinner.style.display = 'flex';
+            resultsContainer.innerHTML = ''; // Clear previous results
+            resultsContainer.appendChild(loadingSpinner);
+
+
+            // Simulate network delay
+            setTimeout(() => {
+                const results = busDatabase.filter(bus => 
+                    bus.departsFrom.toLowerCase().includes(from) &&
+                    bus.arrivesAt.toLowerCase().includes(to)
+                );
+                
+                loadingSpinner.style.display = 'none';
+                displayResults(results);
+            }, 1500); // 1.5 second delay
+        }
+
+        /**
+         * Displays the search results in cards.
+         */
+        function displayResults(results) {
+            resultsContainer.innerHTML = ''; // Clear everything including spinner
+
+            if (results.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="text-center text-gray-500 py-10">
+                        <i class="fas fa-exclamation-circle fa-3x mb-4"></i>
+                        <p>No direct buses found for your search.</p>
+                        <p class="text-sm">Try checking for nearby stations or alternative dates.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            results.forEach(bus => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-lg shadow-md p-6 mb-4';
+
+                const stopsHtml = bus.stops.map(stop => `<li class="text-gray-600">${stop}</li>`).join('');
+
+                card.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                        <!-- Departure & Arrival -->
+                        <div class="md:col-span-2 flex items-center space-x-4">
+                            <div class="text-center">
+                                <p class="text-2xl font-bold text-gray-900">${bus.departureTime}</p>
+                                <p class="text-sm text-gray-600">${bus.departsFrom}</p>
+                            </div>
+                            <div class="flex-grow text-center">
+                                <i class="fas fa-long-arrow-alt-right text-gray-400"></i>
+                                <p class="text-xs text-gray-500">${bus.duration}</p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-2xl font-bold text-gray-900">${bus.arrivalTime}</p>
+                                <p class="text-sm text-gray-600">${bus.arrivesAt}</p>
+                            </div>
+                        </div>
+
+                        <!-- Operator and Price -->
+                        <div class="md:col-span-1 text-center md:text-left">
+                            <p class="font-semibold">${bus.operator}</p>
+                            <p class="text-sm text-gray-500">Route ${bus.route}</p>
+                        </div>
+
+                        <div class="md:col-span-1 text-center md:text-right">
+                            <p class="text-xl font-bold text-indigo-600">${bus.price}</p>
+                            <button class="bg-indigo-500 text-white px-4 py-2 rounded-md mt-2 text-sm">Book Now</button>
+                        </div>
+                    </div>
+                    <!-- Mid-stop points toggle -->
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <button class="stops-toggle text-sm font-medium text-indigo-600 hover:underline">
+                            Show stops <i class="fas fa-chevron-down text-xs transition-transform"></i>
+                        </button>
+                        <div class="stop-points mt-2 pl-4 border-l-2 border-indigo-200">
+                            <ul class="list-disc list-inside space-y-1">
+                                ${stopsHtml}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+                resultsContainer.appendChild(card);
+            });
+            
+            // Add event listeners to the new toggle buttons
+            document.querySelectorAll('.stops-toggle').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const stopsContainer = event.currentTarget.nextElementSibling;
+                    stopsContainer.classList.toggle('show');
+                    const icon = event.currentTarget.querySelector('i');
+                    icon.style.transform = stopsContainer.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0deg)';
+                });
+            });
+        }
+    </script>
+</body>
+</html>
+
+
