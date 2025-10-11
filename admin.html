@@ -61,8 +61,11 @@
         <main class="container mx-auto p-6">
             <!-- Add Bus Form -->
             <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-                <h2 class="text-xl font-semibold mb-4 text-gray-700">Add New Bus Route</h2>
-                <form id="add-bus-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-700">Add New Bus Route</h2>
+                    <button id="open-bulk-modal-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition text-sm">Add in Bulk</button>
+                </div>
+                <form id="add-bus-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <!-- Form fields -->
                     <input type="text" id="add-route" placeholder="Route Name (e.g., 100)" class="px-3 py-2 border rounded" required>
                     <input type="text" id="add-operator" placeholder="Operator (e.g., City Bus)" class="px-3 py-2 border rounded" required>
@@ -71,16 +74,18 @@
                     <input type="time" id="add-departureTime" class="px-3 py-2 border rounded" required>
                     <input type="time" id="add-arrivalTime" class="px-3 py-2 border rounded" required>
                     <input type="text" id="add-price" placeholder="Price (e.g., £5.50)" class="px-3 py-2 border rounded">
-                    <textarea id="add-stops" placeholder="Mid-stops (comma-separated)" class="md:col-span-2 px-3 py-2 border rounded"></textarea>
+                    <input type="text" id="add-expresswayEntrance" placeholder="Expressway Entrance" class="px-3 py-2 border rounded">
+                    <input type="text" id="add-expresswayExit" placeholder="Expressway Exit" class="px-3 py-2 border rounded">
+                    <textarea id="add-stops" placeholder="Mid-stops (comma-separated)" class="md:col-span-2 lg:col-span-3 px-3 py-2 border rounded"></textarea>
                     
-                    <div class="lg:col-span-3">
+                    <div class="lg:col-span-4">
                         <label class="block text-gray-700 mb-2 font-medium">Availability:</label>
                         <div id="add-availability" class="flex flex-wrap gap-4 items-center">
                             <!-- Checkboxes will be inserted here by JS -->
                         </div>
                     </div>
 
-                    <div class="lg:col-span-3">
+                    <div class="lg:col-span-4">
                         <button type="submit" class="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition">Add Bus</button>
                     </div>
                 </form>
@@ -96,10 +101,9 @@
                                 <th class="p-3">Route</th>
                                 <th class="p-3">From</th>
                                 <th class="p-3">To</th>
+                                <th class="p-3">Expressway</th>
                                 <th class="p-3">Departure</th>
-                                <th class="p-3">Arrival</th>
-                                <th class="p-3">Availability</th>
-                                <th class="p-3 text-right">Actions</th>
+                                <th class="p-3">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="bus-list" class="divide-y">
@@ -125,6 +129,8 @@
                     <input type="time" id="edit-departureTime" class="px-3 py-2 border rounded" required>
                     <input type="time" id="edit-arrivalTime" class="px-3 py-2 border rounded" required>
                     <input type="text" id="edit-price" placeholder="Price" class="px-3 py-2 border rounded">
+                    <input type="text" id="edit-expresswayEntrance" placeholder="Expressway Entrance" class="px-3 py-2 border rounded">
+                    <input type="text" id="edit-expresswayExit" placeholder="Expressway Exit" class="px-3 py-2 border rounded">
                     <textarea id="edit-stops" placeholder="Stops" class="md:col-span-2 px-3 py-2 border rounded"></textarea>
                     
                     <div class="md:col-span-2">
@@ -141,10 +147,57 @@
             </form>
         </div>
     </div>
+    
+    <!-- Bulk Add Modal -->
+    <div id="bulk-add-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-4xl">
+            <h2 class="text-xl font-semibold mb-6">Bulk Add Bus Routes</h2>
+            <form id="bulk-add-form">
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Bus Details -->
+                    <input type="text" id="bulk-route" placeholder="Route Name" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="bulk-operator" placeholder="Operator" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="bulk-price" placeholder="Price" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="bulk-departsFrom" placeholder="Departs From" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="bulk-arrivesAt" placeholder="Arrives At" class="px-3 py-2 border rounded" required>
+                    <input type="number" id="bulk-travel-duration" placeholder="Travel Duration (minutes)" class="px-3 py-2 border rounded" required>
+                    <input type="text" id="bulk-expresswayEntrance" placeholder="Expressway Entrance" class="px-3 py-2 border rounded">
+                    <input type="text" id="bulk-expresswayExit" placeholder="Expressway Exit" class="px-3 py-2 border rounded">
+                    <textarea id="bulk-stops" placeholder="Stops (comma-separated)" class="md:col-span-3 px-3 py-2 border rounded"></textarea>
+                    
+                    <!-- Frequency Details -->
+                    <div class="md:col-span-3 border-t pt-6 mt-6 grid grid-cols-3 gap-6">
+                        <div>
+                            <label for="bulk-startTime" class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                            <input type="time" id="bulk-startTime" class="w-full px-3 py-2 border rounded" required>
+                        </div>
+                        <div>
+                            <label for="bulk-endTime" class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                            <input type="time" id="bulk-endTime" class="w-full px-3 py-2 border rounded" required>
+                        </div>
+                        <div>
+                            <label for="bulk-frequency" class="block text-sm font-medium text-gray-700 mb-1">Frequency (minutes)</label>
+                            <input type="number" id="bulk-frequency" value="30" class="w-full px-3 py-2 border rounded" required>
+                        </div>
+                    </div>
+
+                    <div class="md:col-span-3">
+                        <label class="block text-gray-700 mb-2 font-medium">Availability:</label>
+                        <div id="bulk-availability" class="flex flex-wrap gap-4 items-center">
+                           <!-- Checkboxes will be populated here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-8 flex justify-end space-x-4">
+                    <button type="button" id="cancel-bulk-add" class="bg-gray-300 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-400">Cancel</button>
+                    <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">Generate and Add Buses</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
 
     <script>
-        // --- IMPORTANT: CONFIGURE FIREBASE ---
         // This is the correct format. Just paste your values here.
         const firebaseConfig = {
             apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
@@ -161,27 +214,23 @@
             const warningDiv = document.getElementById('config-warning');
             const loginButton = document.getElementById('login-button');
 
-            // 1. Check if Firebase config is still a placeholder
             if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
                 warningDiv.style.display = 'block';
                 loginButton.disabled = true;
                 loginButton.classList.add('opacity-50', 'cursor-not-allowed');
                 console.error("Firebase config is missing. Please paste it into admin.html.");
-                return; // Stop execution if config is missing
+                return;
             }
 
-            // 2. Initialize Firebase only if config is valid
             firebase.initializeApp(firebaseConfig);
             const auth = firebase.auth();
             const db = firebase.firestore();
             const busesCollection = db.collection('buses');
 
-            // 3. Now, run the main application logic
             runAdminApp(auth, db, busesCollection);
         });
 
         function runAdminApp(auth, db, busesCollection) {
-            // DOM Elements
             const loginScreen = document.getElementById('login-screen');
             const adminDashboard = document.getElementById('admin-dashboard');
             const loginForm = document.getElementById('login-form');
@@ -189,13 +238,20 @@
             const logoutButton = document.getElementById('logout-button');
             const busList = document.getElementById('bus-list');
             const addBusForm = document.getElementById('add-bus-form');
+            
+            // Edit Modal elements
             const editModal = document.getElementById('edit-modal');
             const editBusForm = document.getElementById('edit-bus-form');
             const cancelEditButton = document.getElementById('cancel-edit');
+            
+            // Bulk Add Modal elements
+            const bulkAddModal = document.getElementById('bulk-add-modal');
+            const openBulkModalBtn = document.getElementById('open-bulk-modal-btn');
+            const bulkAddForm = document.getElementById('bulk-add-form');
+            const cancelBulkAddButton = document.getElementById('cancel-bulk-add');
 
             const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-            // --- AUTHENTICATION LOGIC ---
             auth.onAuthStateChanged(user => {
                 if (user) {
                     loginScreen.classList.add('hidden');
@@ -213,64 +269,42 @@
                 const password = document.getElementById('password').value;
                 loginError.textContent = '';
                 auth.signInWithEmailAndPassword(email, password)
-                    .catch(error => {
-                        loginError.textContent = error.message;
-                    });
+                    .catch(error => { loginError.textContent = error.message; });
             });
 
-            logoutButton.addEventListener('click', () => {
-                auth.signOut();
-            });
+            logoutButton.addEventListener('click', () => { auth.signOut(); });
+            openBulkModalBtn.addEventListener('click', () => bulkAddModal.classList.remove('hidden'));
+            cancelBulkAddButton.addEventListener('click', () => bulkAddModal.classList.add('hidden'));
+            cancelEditButton.addEventListener('click', () => editModal.classList.add('hidden'));
 
-            // --- UI HELPER FUNCTIONS ---
             const createDayCheckboxes = (containerId, prefix = '') => {
                 const container = document.getElementById(containerId);
                 container.innerHTML = '';
                 daysOfWeek.forEach(day => {
-                    container.innerHTML += `
-                        <label class="flex items-center space-x-2">
-                            <input type="checkbox" name="${prefix}day" value="${day}" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                            <span>${day}</span>
-                        </label>
-                    `;
+                    container.innerHTML += `<label class="flex items-center space-x-2"><input type="checkbox" name="${prefix}day" value="${day}" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>${day}</span></label>`;
                 });
-                container.innerHTML += `
-                    <label class="flex items-center space-x-2 font-bold">
-                        <input type="checkbox" id="${prefix}select-all-days" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                        <span>All Days</span>
-                    </label>
-                `;
+                container.innerHTML += `<label class="flex items-center space-x-2 font-bold"><input type="checkbox" id="${prefix}select-all-days" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>All Days</span></label>`;
                 document.getElementById(`${prefix}select-all-days`).addEventListener('change', (e) => {
-                    document.querySelectorAll(`input[name="${prefix}day"]`).forEach(checkbox => {
-                        checkbox.checked = e.target.checked;
-                    });
+                    document.querySelectorAll(`input[name="${prefix}day"]`).forEach(checkbox => checkbox.checked = e.target.checked);
                 });
             };
 
-            const getSelectedDays = (prefix = '') => {
-                const selected = [];
-                document.querySelectorAll(`input[name="${prefix}day"]:checked`).forEach(checkbox => {
-                    selected.push(checkbox.value);
-                });
-                return selected;
-            };
-
-            // Initialize day checkboxes
+            const getSelectedDays = (prefix = '') => Array.from(document.querySelectorAll(`input[name="${prefix}day"]:checked`)).map(cb => cb.value);
+            
             createDayCheckboxes('add-availability', 'add-');
             createDayCheckboxes('edit-availability', 'edit-');
+            createDayCheckboxes('bulk-availability', 'bulk-');
 
-            // --- FIRESTORE CRUD OPERATIONS ---
             let sortableInstance = null;
             
             const fetchAndDisplayBuses = async () => {
-                busList.innerHTML = '<tr><td colspan="7" class="text-center p-4">Loading...</td></tr>';
+                busList.innerHTML = '<tr><td colspan="6" class="text-center p-4">Loading...</td></tr>';
                 try {
                     const snapshot = await busesCollection.orderBy('sortOrder').get();
                     if (snapshot.empty) {
-                        busList.innerHTML = '<tr><td colspan="7" class="text-center p-4">No bus routes found. Add one above.</td></tr>';
+                        busList.innerHTML = '<tr><td colspan="6" class="text-center p-4">No bus routes found.</td></tr>';
                         return;
                     }
-                    
                     busList.innerHTML = '';
                     snapshot.forEach(doc => {
                         const bus = { id: doc.id, ...doc.data() };
@@ -278,12 +312,11 @@
                         row.dataset.id = bus.id;
                         row.className = 'hover:bg-gray-50 cursor-move';
                         row.innerHTML = `
-                            <td class="p-3">${bus.route}</td>
+                            <td class="p-3 font-medium">${bus.route}</td>
                             <td class="p-3">${bus.departsFrom}</td>
                             <td class="p-3">${bus.arrivesAt}</td>
+                            <td class="p-3 text-sm">${bus.expresswayEntrance || 'N/A'} → ${bus.expresswayExit || 'N/A'}</td>
                             <td class="p-3">${bus.departureTime}</td>
-                            <td class="p-3">${bus.arrivalTime}</td>
-                            <td class="p-3 text-sm">${(bus.availability || []).join(', ')}</td>
                             <td class="p-3 text-right">
                                 <button class="edit-btn bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600" data-id="${bus.id}">Edit</button>
                                 <button class="delete-btn bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 ml-2" data-id="${bus.id}">Delete</button>
@@ -292,39 +325,27 @@
                         busList.appendChild(row);
                     });
 
-                    // Initialize SortableJS for drag-and-drop
                     if(sortableInstance) sortableInstance.destroy();
                     sortableInstance = new Sortable(busList, {
                         animation: 150,
                         ghostClass: 'ghost',
-                        chosenClass: 'sortable-chosen',
-                        onEnd: async (evt) => {
+                        onEnd: async () => {
                             const orderedIds = Array.from(busList.children).map(row => row.dataset.id);
                             const batch = db.batch();
-                            orderedIds.forEach((id, index) => {
-                                const docRef = busesCollection.doc(id);
-                                batch.update(docRef, { sortOrder: index });
-                            });
+                            orderedIds.forEach((id, index) => batch.update(busesCollection.doc(id), { sortOrder: index }));
                             await batch.commit();
                         }
                     });
-
                 } catch (error) {
                     console.error("Error fetching buses: ", error);
-                    busList.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-red-500">Failed to load data.</td></tr>';
+                    busList.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-red-500">Failed to load data.</td></tr>';
                 }
             };
 
-            // Add Bus
             addBusForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const stops = document.getElementById('add-stops').value.split(',').map(s => s.trim()).filter(Boolean);
-                const availability = getSelectedDays('add-');
-
-                // Get the highest current sortOrder to append the new bus to the end
                 const lastBusSnapshot = await busesCollection.orderBy('sortOrder', 'desc').limit(1).get();
                 const lastOrder = lastBusSnapshot.empty ? -1 : lastBusSnapshot.docs[0].data().sortOrder;
-
                 const newBus = {
                     route: document.getElementById('add-route').value,
                     operator: document.getElementById('add-operator').value,
@@ -333,32 +354,23 @@
                     departureTime: document.getElementById('add-departureTime').value,
                     arrivalTime: document.getElementById('add-arrivalTime').value,
                     price: document.getElementById('add-price').value,
-                    stops: stops,
-                    availability: availability,
+                    expresswayEntrance: document.getElementById('add-expresswayEntrance').value,
+                    expresswayExit: document.getElementById('add-expresswayExit').value,
+                    stops: document.getElementById('add-stops').value.split(',').map(s => s.trim()).filter(Boolean),
+                    availability: getSelectedDays('add-'),
                     sortOrder: lastOrder + 1
                 };
-                
-                try {
-                    await busesCollection.add(newBus);
-                    addBusForm.reset();
-                    document.getElementById('add-select-all-days').checked = false;
-                    fetchAndDisplayBuses();
-                } catch (error) {
-                    console.error("Error adding bus: ", error);
-                }
+                await busesCollection.add(newBus);
+                addBusForm.reset();
+                fetchAndDisplayBuses();
             });
 
-            // Edit and Delete Event Delegation
             busList.addEventListener('click', async (e) => {
                 const id = e.target.dataset.id;
                 if (e.target.classList.contains('delete-btn')) {
-                    if (confirm('Are you sure you want to delete this route?')) {
-                        try {
-                            await busesCollection.doc(id).delete();
-                            fetchAndDisplayBuses();
-                        } catch (error) {
-                            console.error("Error deleting bus: ", error);
-                        }
+                    if (confirm('Are you sure?')) {
+                        await busesCollection.doc(id).delete();
+                        fetchAndDisplayBuses();
                     }
                 } else if (e.target.classList.contains('edit-btn')) {
                     const doc = await busesCollection.doc(id).get();
@@ -371,25 +383,17 @@
                     document.getElementById('edit-departureTime').value = bus.departureTime;
                     document.getElementById('edit-arrivalTime').value = bus.arrivalTime;
                     document.getElementById('edit-price').value = bus.price;
+                    document.getElementById('edit-expresswayEntrance').value = bus.expresswayEntrance || '';
+                    document.getElementById('edit-expresswayExit').value = bus.expresswayExit || '';
                     document.getElementById('edit-stops').value = (bus.stops || []).join(', ');
-                    
-                    // Set availability checkboxes
-                    document.querySelectorAll('input[name="edit-day"]').forEach(checkbox => {
-                        checkbox.checked = (bus.availability || []).includes(checkbox.value);
-                    });
-                    document.getElementById('edit-select-all-days').checked = (bus.availability || []).length === 7;
-
+                    document.querySelectorAll('input[name="edit-day"]').forEach(cb => cb.checked = (bus.availability || []).includes(cb.value));
                     editModal.classList.remove('hidden');
                 }
             });
             
-            // Save Edited Bus
             editBusForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const id = document.getElementById('edit-id').value;
-                const stops = document.getElementById('edit-stops').value.split(',').map(s => s.trim()).filter(Boolean);
-                const availability = getSelectedDays('edit-');
-
                 const updatedBus = {
                     route: document.getElementById('edit-route').value,
                     operator: document.getElementById('edit-operator').value,
@@ -398,21 +402,88 @@
                     departureTime: document.getElementById('edit-departureTime').value,
                     arrivalTime: document.getElementById('edit-arrivalTime').value,
                     price: document.getElementById('edit-price').value,
-                    stops: stops,
-                    availability: availability
+                    expresswayEntrance: document.getElementById('edit-expresswayEntrance').value,
+                    expresswayExit: document.getElementById('edit-expresswayExit').value,
+                    stops: document.getElementById('edit-stops').value.split(',').map(s => s.trim()).filter(Boolean),
+                    availability: getSelectedDays('edit-')
                 };
-                
-                try {
-                    await busesCollection.doc(id).update(updatedBus);
-                    editModal.classList.add('hidden');
-                    fetchAndDisplayBuses();
-                } catch (error) {
-                    console.error("Error updating bus: ", error);
-                }
+                await busesCollection.doc(id).update(updatedBus);
+                editModal.classList.add('hidden');
+                fetchAndDisplayBuses();
             });
 
-            cancelEditButton.addEventListener('click', () => {
-                editModal.classList.add('hidden');
+            bulkAddForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const button = e.target.querySelector('button[type="submit"]');
+                button.disabled = true;
+                button.textContent = 'Generating...';
+
+                try {
+                    const commonData = {
+                        route: document.getElementById('bulk-route').value,
+                        operator: document.getElementById('bulk-operator').value,
+                        departsFrom: document.getElementById('bulk-departsFrom').value,
+                        arrivesAt: document.getElementById('bulk-arrivesAt').value,
+                        price: document.getElementById('bulk-price').value,
+                        expresswayEntrance: document.getElementById('bulk-expresswayEntrance').value,
+                        expresswayExit: document.getElementById('bulk-expresswayExit').value,
+                        stops: document.getElementById('bulk-stops').value.split(',').map(s => s.trim()).filter(Boolean),
+                        availability: getSelectedDays('bulk-')
+                    };
+
+                    const startTime = document.getElementById('bulk-startTime').value;
+                    const endTime = document.getElementById('bulk-endTime').value;
+                    const frequency = parseInt(document.getElementById('bulk-frequency').value, 10);
+                    const travelDuration = parseInt(document.getElementById('bulk-travel-duration').value, 10);
+                    
+                    if(!startTime || !endTime || !frequency || !travelDuration) {
+                        alert("Please fill all time-related fields.");
+                        return;
+                    }
+
+                    const startDate = new Date(`1970-01-01T${startTime}:00`);
+                    const endDate = new Date(`1970-01-01T${endTime}:00`);
+
+                    const lastBusSnapshot = await busesCollection.orderBy('sortOrder', 'desc').limit(1).get();
+                    let currentSortOrder = lastBusSnapshot.empty ? 0 : lastBusSnapshot.docs[0].data().sortOrder + 1;
+
+                    const batch = db.batch();
+                    let busCount = 0;
+
+                    for (let d = new Date(startDate); d <= endDate; d.setMinutes(d.getMinutes() + frequency)) {
+                        const departureTime = d.toTimeString().substring(0, 5);
+                        const arrivalDate = new Date(d.getTime() + travelDuration * 60000);
+                        const arrivalTime = arrivalDate.toTimeString().substring(0, 5);
+
+                        const newBus = {
+                            ...commonData,
+                            departureTime,
+                            arrivalTime,
+                            sortOrder: currentSortOrder++
+                        };
+                        
+                        const newBusRef = busesCollection.doc(); // Auto-generate ID
+                        batch.set(newBusRef, newBus);
+                        busCount++;
+                    }
+
+                    if (busCount > 0) {
+                        await batch.commit();
+                        alert(`${busCount} buses have been added successfully!`);
+                    } else {
+                        alert("No buses were generated. Check your start/end times.");
+                    }
+
+                } catch (error) {
+                    console.error("Bulk add error:", error);
+                    alert("An error occurred during the bulk add operation.");
+                } finally {
+                    button.disabled = false;
+                    button.textContent = 'Generate and Add Buses';
+                    bulkAddForm.reset();
+                    bulkAddModal.classList.add('hidden');
+                    fetchAndDisplayBuses();
+                }
             });
         }
     </script>
