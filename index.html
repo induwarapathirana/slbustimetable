@@ -1,89 +1,237 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Welcome to Firebase Hosting</title>
-
-    <!-- update the version number as needed -->
-    <script defer src="/__/firebase/12.4.0/firebase-app-compat.js"></script>
-    <!-- include only the Firebase features as you need -->
-    <script defer src="/__/firebase/12.4.0/firebase-auth-compat.js"></script>
-    <script defer src="/__/firebase/12.4.0/firebase-database-compat.js"></script>
-    <script defer src="/__/firebase/12.4.0/firebase-firestore-compat.js"></script>
-    <script defer src="/__/firebase/12.4.0/firebase-functions-compat.js"></script>
-    <script defer src="/__/firebase/12.4.0/firebase-messaging-compat.js"></script>
-    <script defer src="/__/firebase/12.4.0/firebase-storage-compat.js"></script>
-    <script defer src="/__/firebase/12.4.0/firebase-analytics-compat.js"></script>
-    <script defer src="/__/firebase/12.4.0/firebase-remote-config-compat.js"></script>
-    <script defer src="/__/firebase/12.4.0/firebase-performance-compat.js"></script>
-    <!-- 
-      initialize the SDK after all desired features are loaded, set useEmulator to false
-      to avoid connecting the SDK to running emulators.
-    -->
-    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
-
-    <style media="screen">
-      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px; border-radius: 3px; }
-      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
-      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
-      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
-      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
-      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
-      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
-      @media (max-width: 600px) {
-        body, #message { margin-top: 0; background: white; box-shadow: none; }
-        body { border-top: 16px solid #ffa100; }
-      }
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UK Bus Timetable Search</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #config-warning {
+            display: none;
+            background-color: #fffbe6;
+            color: #92400e;
+            padding: 1rem;
+            border: 1px solid #fde68a;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
     </style>
-  </head>
-  <body>
-    <div id="message">
-      <h2>Welcome</h2>
-      <h1>Firebase Hosting Setup Complete</h1>
-      <p>You're seeing this because you've successfully setup Firebase Hosting. Now it's time to go build something extraordinary!</p>
-      <a target="_blank" href="https://firebase.google.com/docs/hosting/">Open Hosting Documentation</a>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">Find Your Bus</h1>
+            <p class="text-gray-600 mt-2">Real-time bus schedules across the UK</p>
+        </header>
+
+        <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg">
+            <div id="config-warning">
+                <strong>Configuration Needed:</strong> Please paste your Firebase config object into the HTML file to enable search.
+            </div>
+            <form id="search-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="relative">
+                        <label for="from" class="block text-sm font-medium text-gray-700 mb-1">From</label>
+                        <input type="text" id="from" placeholder="e.g., London or M1 Entrance" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                        <div id="from-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-b-lg mt-1 hidden"></div>
+                    </div>
+                    <div class="relative">
+                        <label for="to" class="block text-sm font-medium text-gray-700 mb-1">To</label>
+                        <input type="text" id="to" placeholder="e.g., Manchester or M6 Exit" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                        <div id="to-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-b-lg mt-1 hidden"></div>
+                    </div>
+                </div>
+                <div>
+                    <label for="date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input type="date" id="date" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                </div>
+                <div>
+                    <button type="submit" id="search-button" class="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">Search</button>
+                </div>
+            </form>
+        </div>
+
+        <main id="results-container" class="mt-8 max-w-4xl mx-auto">
+            <!-- Search results will be inserted here -->
+        </main>
     </div>
-    <p id="load">Firebase SDK Loading&hellip;</p>
 
     <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const loadEl = document.querySelector('#load');
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        // // The Firebase SDK is initialized and available here!
-        //
-        // firebase.auth().onAuthStateChanged(user => { });
-        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
-        // firebase.firestore().doc('/foo/bar').get().then(() => { });
-        // firebase.functions().httpsCallable('yourFunction')().then(() => { });
-        // firebase.messaging().requestPermission().then(() => { });
-        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
-        // firebase.analytics(); // call to activate
-        // firebase.analytics().logEvent('tutorial_completed');
-        // firebase.performance(); // call to activate
-        //
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+        // This is the correct format. Just paste your values here.
+        const firebaseConfig = {
+            apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
+            authDomain: "sl-bus-timetable-app.firebaseapp.com",
+            projectId: "sl-bus-timetable-app",
+            storageBucket: "sl-bus-timetable-app.firebasestorage.app",
+            messagingSenderId: "107324674333",
+            appId: "1:107324674333:web:2058e8958f2c1dfd0c91f4",
+            measurementId: "G-JEBZ0J484N"
+        };
 
-        try {
-          let app = firebase.app();
-          let features = [
-            'auth', 
-            'database', 
-            'firestore',
-            'functions',
-            'messaging', 
-            'storage', 
-            'analytics', 
-            'remoteConfig',
-            'performance',
-          ].filter(feature => typeof app[feature] === 'function');
-          loadEl.textContent = `Firebase SDK loaded with ${features.join(', ')}`;
-        } catch (e) {
-          console.error(e);
-          loadEl.textContent = 'Error loading the Firebase SDK, check the console.';
+        // --- SCRIPT INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const warningDiv = document.getElementById('config-warning');
+            const searchButton = document.getElementById('search-button');
+
+            if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
+                warningDiv.style.display = 'block';
+                searchButton.disabled = true;
+                searchButton.classList.add('opacity-50', 'cursor-not-allowed');
+                console.error("Firebase config is missing. Please paste it into index.html.");
+                return;
+            }
+
+            firebase.initializeApp(firebaseConfig);
+            const db = firebase.firestore();
+            const busesCollection = db.collection('buses');
+
+            runSearchApp(db, busesCollection);
+        });
+
+        function runSearchApp(db, busesCollection) {
+            const searchForm = document.getElementById('search-form');
+            const fromInput = document.getElementById('from');
+            const toInput = document.getElementById('to');
+            const fromSuggestions = document.getElementById('from-suggestions');
+            const toSuggestions = document.getElementById('to-suggestions');
+            const resultsContainer = document.getElementById('results-container');
+            const dateInput = document.getElementById('date');
+
+            dateInput.value = new Date().toISOString().split('T')[0];
+            
+            let allStations = new Set();
+
+            busesCollection.get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    const bus = doc.data();
+                    if (bus.departsFrom) allStations.add(bus.departsFrom);
+                    if (bus.arrivesAt) allStations.add(bus.arrivesAt);
+                    if (bus.expresswayEntrance) allStations.add(bus.expresswayEntrance);
+                    if (bus.expresswayExit) allStations.add(bus.expresswayExit);
+                });
+                allStations = Array.from(allStations).sort();
+            });
+
+            const showSuggestions = (inputElement, suggestionsContainer, query) => {
+                suggestionsContainer.innerHTML = '';
+                if (!query) {
+                    suggestionsContainer.classList.add('hidden');
+                    return;
+                }
+                const filtered = allStations.filter(station => station.toLowerCase().includes(query.toLowerCase())).slice(0, 5);
+                if (filtered.length > 0) {
+                    suggestionsContainer.classList.remove('hidden');
+                    filtered.forEach(station => {
+                        const div = document.createElement('div');
+                        div.textContent = station;
+                        div.className = 'p-2 hover:bg-gray-200 cursor-pointer';
+                        div.onclick = () => {
+                            inputElement.value = station;
+                            suggestionsContainer.classList.add('hidden');
+                        };
+                        suggestionsContainer.appendChild(div);
+                    });
+                } else {
+                    suggestionsContainer.classList.add('hidden');
+                }
+            };
+            
+            fromInput.addEventListener('input', () => showSuggestions(fromInput, fromSuggestions, fromInput.value));
+            toInput.addEventListener('input', () => showSuggestions(toInput, toSuggestions, toInput.value));
+
+            document.addEventListener('click', (e) => {
+                if (!fromInput.contains(e.target)) fromSuggestions.classList.add('hidden');
+                if (!toInput.contains(e.target)) toSuggestions.classList.add('hidden');
+            });
+
+            searchForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const from = fromInput.value.trim().toLowerCase();
+                const to = toInput.value.trim().toLowerCase();
+                const date = dateInput.value;
+
+                resultsContainer.innerHTML = `<p class="text-center text-gray-600">Searching...</p>`;
+
+                try {
+                    const searchDate = new Date(date);
+                    searchDate.setHours(12);
+                    const dayOfWeek = searchDate.toLocaleString('en-US', { weekday: 'long' });
+
+                    // Fetch all buses for the day, then filter client-side for the OR condition
+                    const snapshot = await busesCollection
+                        .where('availability', 'array-contains', dayOfWeek)
+                        .orderBy('departureTime')
+                        .get();
+
+                    const filteredDocs = snapshot.docs.filter(doc => {
+                        const bus = doc.data();
+                        const fromMatch = (bus.departsFrom && bus.departsFrom.toLowerCase() === from) ||
+                                          (bus.expresswayEntrance && bus.expresswayEntrance.toLowerCase() === from);
+                        const toMatch = (bus.arrivesAt && bus.arrivesAt.toLowerCase() === to) ||
+                                        (bus.expresswayExit && bus.expresswayExit.toLowerCase() === to);
+                        return fromMatch && toMatch;
+                    });
+
+                    if (filteredDocs.length === 0) {
+                        resultsContainer.innerHTML = `<p class="text-center text-gray-600 bg-white p-4 rounded-lg shadow">No direct buses found for ${dayOfWeek}, ${date}.</p>`;
+                        return;
+                    }
+                    displayResults(filteredDocs);
+                } catch (error) {
+                    console.error("Error searching buses:", error);
+                    resultsContainer.innerHTML = `<p class="text-center text-red-500 bg-white p-4 rounded-lg shadow">An error occurred. Please check the console for a link to create a required Firestore index.</p>`;
+                }
+            });
+
+            const displayResults = (docs) => {
+                resultsContainer.innerHTML = '';
+                docs.forEach(doc => {
+                    const bus = doc.data();
+                    const card = document.createElement('div');
+                    card.className = 'bg-white rounded-lg shadow-md p-6 mb-4';
+                    const expresswayInfo = bus.expresswayEntrance && bus.expresswayExit
+                        ? `<p class="text-sm text-gray-500 mt-1">
+                                <strong>Expressway:</strong> ${bus.expresswayEntrance} → ${bus.expresswayExit}
+                           </p>`
+                        : '';
+
+                    card.innerHTML = `
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+                            <div class="md:col-span-1">
+                                <p class="text-lg font-bold text-blue-600">${bus.operator}</p>
+                                <p class="text-sm text-gray-500">Route ${bus.route}</p>
+                            </div>
+                            <div class="md:col-span-2 flex items-center justify-between md:justify-center">
+                                <div>
+                                    <p class="text-xl font-semibold">${bus.departureTime}</p>
+                                    <p class="text-gray-600">${bus.departsFrom}</p>
+                                </div>
+                                <div class="text-center mx-4 text-gray-400 font-light">→</div>
+                                <div>
+                                    <p class="text-xl font-semibold">${bus.arrivalTime}</p>
+                                    <p class="text-gray-600">${bus.arrivesAt}</p>
+                                </div>
+                            </div>
+                            <div class="md:col-span-1 text-center md:text-right">
+                                <p class="text-2xl font-bold">${bus.price}</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-4 border-t">
+                            <p class="text-sm text-gray-600"><strong>Stops:</strong> ${(bus.stops || []).join(', ') || 'Direct service'}</p>
+                            <p class="text-sm text-gray-500 mt-1"><strong>Runs on:</strong> ${(bus.availability || []).join(', ')}</p>
+                            ${expresswayInfo}
+                        </div>
+                    `;
+                    resultsContainer.appendChild(card);
+                });
+            };
         }
-      });
     </script>
-  </body>
+</body>
 </html>
+
