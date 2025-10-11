@@ -26,7 +26,7 @@
     <div class="container mx-auto p-4 md:p-8">
         <header class="text-center mb-8">
             <h1 class="text-4xl font-bold text-gray-800">Find Your Expressway Bus</h1>
-            <p class="text-gray-600 mt-2">Real-time bus schedules across the Sri Lanka Expressways</p>
+            <p class="text-gray-600 mt-2">Real-time bus schedules across the Expressways Sri Lanka</p>
         </header>
 
         <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg">
@@ -37,12 +37,12 @@
                 <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="relative">
                         <label for="from" class="block text-sm font-medium text-gray-700 mb-1">From</label>
-                        <input type="text" id="from" placeholder="e.g., London or M1 Entrance" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                        <input type="text" id="from" placeholder="e.g., Galle" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                         <div id="from-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-b-lg mt-1 hidden"></div>
                     </div>
                     <div class="relative">
                         <label for="to" class="block text-sm font-medium text-gray-700 mb-1">To</label>
-                        <input type="text" id="to" placeholder="e.g., Manchester or M6 Exit" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                        <input type="text" id="to" placeholder="e.g., Makumbura" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
                         <div id="to-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-b-lg mt-1 hidden"></div>
                     </div>
                 </div>
@@ -62,6 +62,9 @@
     </div>
 
     <script>
+        // --- IMPORTANT: CONFIGURE FIREBASE ---
+        // PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE.
+        // You can get this from your Firebase project settings.
         // This is the correct format. Just paste your values here.
         const firebaseConfig = {
             apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
@@ -78,7 +81,8 @@
             const warningDiv = document.getElementById('config-warning');
             const searchButton = document.getElementById('search-button');
 
-            if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
+            // This check verifies if you have pasted your configuration above.
+            if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("PASTE_YOUR_")) {
                 warningDiv.style.display = 'block';
                 searchButton.disabled = true;
                 searchButton.classList.add('opacity-50', 'cursor-not-allowed');
@@ -109,10 +113,10 @@
             busesCollection.get().then(snapshot => {
                 snapshot.forEach(doc => {
                     const bus = doc.data();
-                    if (bus.departsFrom) allStations.add(bus.departsFrom);
-                    if (bus.arrivesAt) allStations.add(bus.arrivesAt);
-                    if (bus.expresswayEntrance) allStations.add(bus.expresswayEntrance);
-                    if (bus.expresswayExit) allStations.add(bus.expresswayExit);
+                    if (bus.departsFrom) allStations.add(bus.departsFrom.trim());
+                    if (bus.arrivesAt) allStations.add(bus.arrivesAt.trim());
+                    if (bus.expresswayEntrance) allStations.add(bus.expresswayEntrance.trim());
+                    if (bus.expresswayExit) allStations.add(bus.expresswayExit.trim());
                 });
                 allStations = Array.from(allStations).sort();
             });
@@ -151,6 +155,7 @@
 
             searchForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
+                // Get and normalize user input
                 const from = fromInput.value.trim().toLowerCase();
                 const to = toInput.value.trim().toLowerCase();
                 const date = dateInput.value;
@@ -162,20 +167,30 @@
                     searchDate.setHours(12);
                     const dayOfWeek = searchDate.toLocaleString('en-US', { weekday: 'long' });
 
-                    // Fetch all buses for the day, then filter client-side for the OR condition
                     const snapshot = await busesCollection
                         .where('availability', 'array-contains', dayOfWeek)
                         .orderBy('departureTime')
                         .get();
-
+                    
+                    // More robust client-side filtering
                     const filteredDocs = snapshot.docs.filter(doc => {
                         const bus = doc.data();
-                        const fromMatch = (bus.departsFrom && bus.departsFrom.toLowerCase() === from) ||
-                                          (bus.expresswayEntrance && bus.expresswayEntrance.toLowerCase() === from);
-                        const toMatch = (bus.arrivesAt && bus.arrivesAt.toLowerCase() === to) ||
-                                        (bus.expresswayExit && bus.expresswayExit.toLowerCase() === to);
+                        
+                        // Normalize database values before comparing (trims spaces, handles missing fields)
+                        const busDepartsFrom = bus.departsFrom ? bus.departsFrom.trim().toLowerCase() : null;
+                        const busExpresswayEntrance = bus.expresswayEntrance ? bus.expresswayEntrance.trim().toLowerCase() : null;
+                        const busArrivesAt = bus.arrivesAt ? bus.arrivesAt.trim().toLowerCase() : null;
+                        const busExpresswayExit = bus.expresswayExit ? bus.expresswayExit.trim().toLowerCase() : null;
+
+                        const fromMatch = (busDepartsFrom && busDepartsFrom === from) ||
+                                          (busExpresswayEntrance && busExpresswayEntrance === from);
+                                          
+                        const toMatch = (busArrivesAt && busArrivesAt === to) ||
+                                        (busExpresswayExit && busExpresswayExit === to);
+
                         return fromMatch && toMatch;
                     });
+
 
                     if (filteredDocs.length === 0) {
                         resultsContainer.innerHTML = `<p class="text-center text-gray-600 bg-white p-4 rounded-lg shadow">No direct buses found for ${dayOfWeek}, ${date}.</p>`;
