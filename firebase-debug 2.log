@@ -1,0 +1,43 @@
+[debug] [2025-10-11T16:57:41.803Z] ----------------------------------------------------------------------
+[debug] [2025-10-11T16:57:41.811Z] Command:       /usr/local/bin/node /usr/local/bin/firebase emulators:start
+[debug] [2025-10-11T16:57:41.811Z] CLI Version:   14.19.1
+[debug] [2025-10-11T16:57:41.811Z] Platform:      darwin
+[debug] [2025-10-11T16:57:41.811Z] Node Version:  v20.15.0
+[debug] [2025-10-11T16:57:41.811Z] Time:          Sat Oct 11 2025 22:27:41 GMT+0530 (India Standard Time)
+[debug] [2025-10-11T16:57:41.811Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-10-11T16:57:41.998Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-10-11T16:57:41.998Z] > authorizing via signed-in user (induwara1203@gmail.com)
+[debug] [2025-10-11T16:57:42.158Z] openjdk version "25" 2025-09-16
+
+[debug] [2025-10-11T16:57:42.158Z] OpenJDK Runtime Environment Homebrew (build 25)
+OpenJDK 64-Bit Server VM Homebrew (build 25, mixed mode, sharing)
+
+[debug] [2025-10-11T16:57:42.164Z] Parsed Java major version: 25
+[info] i  emulators: Starting emulators: auth, firestore, hosting {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, firestore, hosting"}}
+[warn] ⚠  auth: Port 9099 is available on 127.0.0.1 but not ::1. This may cause issues with some clients. {"metadata":{"emulator":{"name":"auth"},"message":"Port 9099 is available on 127.0.0.1 but not ::1. This may cause issues with some clients."}}
+[warn] ⚠  auth: If you encounter connectivity issues, consider switching to a different port or explicitly specifying "host": "<ip address>" instead of hostname in firebase.json {"metadata":{"emulator":{"name":"auth"},"message":"If you encounter connectivity issues, consider switching to a different port or explicitly specifying \u001b[33m\"host\": \"<ip address>\"\u001b[39m instead of hostname in firebase.json"}}
+[warn] ⚠  firestore: Port 9099 is not open on localhost (127.0.0.1), could not start Firestore Emulator. {"metadata":{"emulator":{"name":"firestore"},"message":"Port 9099 is not open on localhost (127.0.0.1), could not start Firestore Emulator."}}
+[warn] ⚠  firestore: To select a different host/port, specify that host/port in a firebase.json config file:
+      {
+        // ...
+        "emulators": {
+          "firestore": {
+            "host": "HOST",
+            "port": "PORT"
+          }
+        }
+      } {"metadata":{"emulator":{"name":"firestore"},"message":"To select a different host/port, specify that host/port in a firebase.json config file:\n      {\n        // ...\n        \"emulators\": {\n          \"firestore\": {\n            \"host\": \"\u001b[33mHOST\u001b[39m\",\n            \"port\": \"\u001b[33mPORT\u001b[39m\"\n          }\n        }\n      }"}}
+[debug] [2025-10-11T16:57:42.744Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-10-11T16:57:42.744Z] [firestore.websocket] websocket server for firestore only supports listening on one address (127.0.0.1). Not listening on ::1
+[warn] ⚠  hosting: Hosting Emulator unable to start on port 5000, starting on 5002 instead. {"metadata":{"emulator":{"name":"hosting"},"message":"Hosting Emulator unable to start on port 5000, starting on 5002 instead."}}
+[debug] [2025-10-11T16:57:42.744Z] [hosting] Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-10-11T16:57:42.747Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[info] i  emulators: Shutting down emulators. {"metadata":{"emulator":{"name":"hub"},"message":"Shutting down emulators."}}
+[debug] [2025-10-11T16:57:42.749Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[debug] [2025-10-11T16:57:47.757Z] Error: Timed out.
+    at Timeout._onTimeout (/usr/local/lib/node_modules/firebase-tools/lib/utils.js:275:49)
+    at listOnTimeout (node:internal/timers:573:17)
+    at process.processTimers (node:internal/timers:514:7)
+[error] 
+[error] Error: An unexpected error has occurred.

@@ -5,197 +5,166 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Bus Timetable</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        .ghost { opacity: 0.4; background: #c8ebfb; }
-        .sortable-chosen { cursor: grabbing; }
-        #config-warning {
-            display: none;
-            background-color: #fffbe6;
-            color: #92400e;
-            padding: 1rem;
-            border: 1px solid #fde68a;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
+        body { font-family: 'Inter', sans-serif; }
+        .sortable-ghost { opacity: 0.4; background: #c8ebfb; }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
     </style>
 </head>
-<body class="bg-gray-100 font-sans">
-
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+<body class="bg-gray-100">
 
     <!-- Login Screen -->
     <div id="login-screen" class="min-h-screen flex items-center justify-center">
-        <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-sm">
-            <h2 class="text-2xl font-bold mb-6 text-center text-gray-800">Admin Login</h2>
-            <div id="config-warning">
-                <strong>Configuration Needed:</strong> Please paste your Firebase config object into the HTML file to enable the login form.
-            </div>
+        <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+            <h2 class="text-2xl font-bold text-center mb-6">Admin Panel Login</h2>
             <form id="login-form">
                 <div class="mb-4">
-                    <label for="email" class="block text-gray-700 mb-2">Email</label>
-                    <input type="email" id="email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div class="mb-6">
-                    <label for="password" class="block text-gray-700 mb-2">Password</label>
-                    <input type="password" id="password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                    <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
-                <button type="submit" id="login-button" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition duration-300">Login</button>
-                <p id="login-error" class="text-red-500 text-sm mt-4 text-center"></p>
+                <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Login</button>
             </form>
+            <p id="login-error" class="text-red-500 text-sm mt-4 text-center"></p>
         </div>
     </div>
 
-    <!-- Main Admin Dashboard (hidden by default) -->
-    <div id="admin-dashboard" class="hidden">
+    <!-- Main Dashboard -->
+    <div id="dashboard" class="hidden">
         <header class="bg-white shadow-md">
-            <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
-                <h1 class="text-2xl font-bold text-gray-800">Bus Timetable Dashboard</h1>
-                <button id="logout-button" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition">Logout</button>
+            <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
+                <h1 class="text-xl font-bold">Bus Schedule Management</h1>
+                <div>
+                    <a href="/user_management.html" class="text-indigo-600 hover:underline mr-4 font-semibold">Manage Users</a>
+                    <button id="logout-button" class="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600">Logout</button>
+                </div>
             </nav>
         </header>
-
-        <main class="container mx-auto p-6">
-            <!-- Add Bus Form -->
-            <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold text-gray-700">Add New Bus Route</h2>
-                    <button id="open-bulk-modal-btn" class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition text-sm">Add in Bulk</button>
-                </div>
-                <form id="add-bus-form" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <!-- Form fields -->
-                    <input type="text" id="add-route" placeholder="Route Name (e.g., 100)" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="add-operator" placeholder="Operator (e.g., City Bus)" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="add-departsFrom" placeholder="Departs From" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="add-arrivesAt" placeholder="Arrives At" class="px-3 py-2 border rounded" required>
-                    <input type="time" id="add-departureTime" class="px-3 py-2 border rounded" required>
-                    <input type="time" id="add-arrivalTime" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="add-price" placeholder="Price (e.g., £5.50)" class="px-3 py-2 border rounded">
-                    <input type="text" id="add-expresswayEntrance" placeholder="Expressway Entrance" class="px-3 py-2 border rounded">
-                    <input type="text" id="add-expresswayExit" placeholder="Expressway Exit" class="px-3 py-2 border rounded">
-                    <textarea id="add-stops" placeholder="Mid-stops (comma-separated)" class="md:col-span-2 lg:col-span-3 px-3 py-2 border rounded"></textarea>
-                    
-                    <div class="lg:col-span-4">
-                        <label class="block text-gray-700 mb-2 font-medium">Availability:</label>
-                        <div id="add-availability" class="flex flex-wrap gap-4 items-center">
-                            <!-- Checkboxes will be inserted here by JS -->
-                        </div>
-                    </div>
-
-                    <div class="lg:col-span-4">
-                        <button type="submit" class="w-full md:w-auto bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition">Add Bus</button>
-                    </div>
-                </form>
+        
+        <main class="container mx-auto p-4 md:p-6">
+            <div id="config-warning" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
+                <strong class="font-bold">Configuration Error!</strong>
+                <span class="block sm:inline">Firebase config is missing. Please paste it into this file.</span>
             </div>
 
-            <!-- Bus Timetable List -->
+            <div class="flex justify-end gap-4 mb-6">
+                <button id="show-add-modal" class="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 shadow">Add Single Bus</button>
+                <button id="show-bulk-add-modal" class="bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 shadow">Bulk Add by Frequency</button>
+            </div>
+
             <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4 text-gray-700">Current Timetable</h2>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="p-3">Route</th>
-                                <th class="p-3">From</th>
-                                <th class="p-3">To</th>
-                                <th class="p-3">Expressway</th>
-                                <th class="p-3">Departure</th>
-                                <th class="p-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bus-list" class="divide-y">
-                            <!-- Bus rows will be populated here by JS -->
-                        </tbody>
-                    </table>
+                <h2 class="text-2xl font-bold mb-4">Current Bus Timetable</h2>
+                <div id="loading" class="text-center py-10">Loading timetable...</div>
+                <div id="bus-list-container" class="overflow-x-auto">
+                    <!-- Bus list table will be generated here -->
                 </div>
             </div>
         </main>
     </div>
 
-    <!-- Edit Modal -->
-    <div id="edit-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-3xl">
-            <h2 class="text-xl font-semibold mb-6">Edit Bus Route</h2>
-            <form id="edit-bus-form">
-                <input type="hidden" id="edit-id">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <input type="text" id="edit-route" placeholder="Route" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="edit-operator" placeholder="Operator" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="edit-departsFrom" placeholder="Departs From" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="edit-arrivesAt" placeholder="Arrives At" class="px-3 py-2 border rounded" required>
-                    <input type="time" id="edit-departureTime" class="px-3 py-2 border rounded" required>
-                    <input type="time" id="edit-arrivalTime" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="edit-price" placeholder="Price" class="px-3 py-2 border rounded">
-                    <input type="text" id="edit-expresswayEntrance" placeholder="Expressway Entrance" class="px-3 py-2 border rounded">
-                    <input type="text" id="edit-expresswayExit" placeholder="Expressway Exit" class="px-3 py-2 border rounded">
-                    <textarea id="edit-stops" placeholder="Stops" class="md:col-span-2 px-3 py-2 border rounded"></textarea>
-                    
-                    <div class="md:col-span-2">
-                        <label class="block text-gray-700 mb-2 font-medium">Availability:</label>
-                        <div id="edit-availability" class="flex flex-wrap gap-4 items-center">
-                           <!-- Checkboxes will be populated here -->
-                        </div>
+    <!-- Add/Edit Modal -->
+    <div id="bus-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center pb-3">
+                <p id="modal-title" class="text-2xl font-bold">Add New Bus</p>
+                <button id="close-modal" class="cursor-pointer z-50">
+                     <svg class="fill-current text-black" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"><path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path></svg>
+                </button>
+            </div>
+            <form id="bus-form" class="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" placeholder="Route (e.g., EX1/01)" id="route" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Operator" id="operator" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="departsFrom" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Arrives At" id="arrivesAt" class="w-full p-2 border rounded" required>
+                    <input type="time" placeholder="Departure Time" id="departureTime" class="w-full p-2 border rounded" required>
+                    <input type="time" placeholder="Arrival Time" id="arrivalTime" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Price (e.g., 1200 LKR)" id="price" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="Expressway Entrance" id="expresswayEntrance" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="Expressway Exit" id="expresswayExit" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="font-bold">Availability (Days of the Week)</label>
+                    <div id="availability-checkboxes" class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                        <!-- Checkboxes will be inserted here -->
                     </div>
                 </div>
-                <div class="mt-8 flex justify-end space-x-4">
-                    <button type="button" id="cancel-edit" class="bg-gray-300 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-400">Cancel</button>
-                    <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700">Save Changes</button>
+                <div>
+                    <label class="font-bold">Intermediate Stops (one per line)</label>
+                    <textarea id="stops" rows="4" class="w-full p-2 border rounded mt-2"></textarea>
                 </div>
+                <input type="hidden" id="bus-id">
+                <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600">Save Bus</button>
             </form>
         </div>
     </div>
     
     <!-- Bulk Add Modal -->
-    <div id="bulk-add-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-lg shadow-xl w-full max-w-4xl">
-            <h2 class="text-xl font-semibold mb-6">Bulk Add Bus Routes</h2>
-            <form id="bulk-add-form">
-                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <!-- Bus Details -->
-                    <input type="text" id="bulk-route" placeholder="Route Name" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="bulk-operator" placeholder="Operator" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="bulk-price" placeholder="Price" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="bulk-departsFrom" placeholder="Departs From" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="bulk-arrivesAt" placeholder="Arrives At" class="px-3 py-2 border rounded" required>
-                    <input type="number" id="bulk-travel-duration" placeholder="Travel Duration (minutes)" class="px-3 py-2 border rounded" required>
-                    <input type="text" id="bulk-expresswayEntrance" placeholder="Expressway Entrance" class="px-3 py-2 border rounded">
-                    <input type="text" id="bulk-expresswayExit" placeholder="Expressway Exit" class="px-3 py-2 border rounded">
-                    <textarea id="bulk-stops" placeholder="Stops (comma-separated)" class="md:col-span-3 px-3 py-2 border rounded"></textarea>
-                    
-                    <!-- Frequency Details -->
-                    <div class="md:col-span-3 border-t pt-6 mt-6 grid grid-cols-3 gap-6">
-                        <div>
-                            <label for="bulk-startTime" class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                            <input type="time" id="bulk-startTime" class="w-full px-3 py-2 border rounded" required>
-                        </div>
-                        <div>
-                            <label for="bulk-endTime" class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                            <input type="time" id="bulk-endTime" class="w-full px-3 py-2 border rounded" required>
-                        </div>
-                        <div>
-                            <label for="bulk-frequency" class="block text-sm font-medium text-gray-700 mb-1">Frequency (minutes)</label>
-                            <input type="number" id="bulk-frequency" value="30" class="w-full px-3 py-2 border rounded" required>
-                        </div>
+    <div id="bulk-add-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-10 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center pb-3">
+                <p class="text-2xl font-bold">Bulk Add Buses by Frequency</p>
+                <button id="close-bulk-modal" class="cursor-pointer z-50">
+                     <svg class="fill-current text-black" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"><path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path></svg>
+                </button>
+            </div>
+            <form id="bulk-bus-form" class="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                <!-- Shared details -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" placeholder="Route (e.g., EX1)" id="bulk-route" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Operator" id="bulk-operator" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="bulk-departsFrom" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Arrives At" id="bulk-arrivesAt" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Price" id="bulk-price" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="Expressway Entrance" id="bulk-expresswayEntrance" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="Expressway Exit" id="bulk-expresswayExit" class="w-full p-2 border rounded">
+                </div>
+                <!-- Frequency details -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-md">
+                    <div>
+                        <label for="bulk-startTime" class="font-semibold block text-sm">Start Time</label>
+                        <input type="time" id="bulk-startTime" class="w-full p-2 border rounded" required>
                     </div>
-
-                    <div class="md:col-span-3">
-                        <label class="block text-gray-700 mb-2 font-medium">Availability:</label>
-                        <div id="bulk-availability" class="flex flex-wrap gap-4 items-center">
-                           <!-- Checkboxes will be populated here -->
-                        </div>
+                    <div>
+                        <label for="bulk-endTime" class="font-semibold block text-sm">End Time</label>
+                        <input type="time" id="bulk-endTime" class="w-full p-2 border rounded" required>
+                    </div>
+                    <div>
+                        <label for="bulk-frequency" class="font-semibold block text-sm">Frequency (mins)</label>
+                        <input type="number" id="bulk-frequency" class="w-full p-2 border rounded" placeholder="e.g., 30" required>
+                    </div>
+                    <div>
+                        <label for="bulk-duration" class="font-semibold block text-sm">Travel Duration (mins)</label>
+                        <input type="number" id="bulk-duration" class="w-full p-2 border rounded" placeholder="e.g., 90" required>
                     </div>
                 </div>
-                <div class="mt-8 flex justify-end space-x-4">
-                    <button type="button" id="cancel-bulk-add" class="bg-gray-300 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-400">Cancel</button>
-                    <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">Generate and Add Buses</button>
+                 <div>
+                    <label class="font-bold">Availability (Days of the Week)</label>
+                    <div id="bulk-availability-checkboxes" class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+                        <!-- Checkboxes will be inserted here -->
+                    </div>
                 </div>
+                <div>
+                    <label class="font-bold">Intermediate Stops (one per line)</label>
+                    <textarea id="bulk-stops" rows="3" class="w-full p-2 border rounded mt-2"></textarea>
+                </div>
+                <p id="bulk-add-message" class="text-sm font-medium"></p>
+                <button type="submit" class="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600">Generate and Add Buses</button>
             </form>
         </div>
     </div>
-
 
     <script>
         // This is the correct format. Just paste your values here.
@@ -211,55 +180,58 @@
 
         // --- SCRIPT INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', () => {
-            const warningDiv = document.getElementById('config-warning');
-            const loginButton = document.getElementById('login-button');
-
-            if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
-                warningDiv.style.display = 'block';
-                loginButton.disabled = true;
-                loginButton.classList.add('opacity-50', 'cursor-not-allowed');
-                console.error("Firebase config is missing. Please paste it into admin.html.");
+            if (!firebaseConfig.apiKey) {
+                document.getElementById('config-warning').classList.remove('hidden');
                 return;
             }
 
-            firebase.initializeApp(firebaseConfig);
+            const app = firebase.initializeApp(firebaseConfig);
             const auth = firebase.auth();
             const db = firebase.firestore();
-            const busesCollection = db.collection('buses');
 
-            runAdminApp(auth, db, busesCollection);
-        });
-
-        function runAdminApp(auth, db, busesCollection) {
+            // DOM Elements
             const loginScreen = document.getElementById('login-screen');
-            const adminDashboard = document.getElementById('admin-dashboard');
+            const dashboard = document.getElementById('dashboard');
             const loginForm = document.getElementById('login-form');
-            const loginError = document.getElementById('login-error');
             const logoutButton = document.getElementById('logout-button');
-            const busList = document.getElementById('bus-list');
-            const addBusForm = document.getElementById('add-bus-form');
+            const busListContainer = document.getElementById('bus-list-container');
+            const loading = document.getElementById('loading');
+
+            const busModal = document.getElementById('bus-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const closeModal = document.getElementById('close-modal');
+            const showAddModal = document.getElementById('show-add-modal');
+            const busForm = document.getElementById('bus-form');
             
-            // Edit Modal elements
-            const editModal = document.getElementById('edit-modal');
-            const editBusForm = document.getElementById('edit-bus-form');
-            const cancelEditButton = document.getElementById('cancel-edit');
-            
-            // Bulk Add Modal elements
             const bulkAddModal = document.getElementById('bulk-add-modal');
-            const openBulkModalBtn = document.getElementById('open-bulk-modal-btn');
-            const bulkAddForm = document.getElementById('bulk-add-form');
-            const cancelBulkAddButton = document.getElementById('cancel-bulk-add');
+            const showBulkAddModal = document.getElementById('show-bulk-add-modal');
+            const closeBulkModal = document.getElementById('close-bulk-modal');
+            const bulkBusForm = document.getElementById('bulk-bus-form');
+            const bulkAddMessage = document.getElementById('bulk-add-message');
 
-            const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+            
+            let currentUser = null;
+            let unsubscribe = null;
 
-            auth.onAuthStateChanged(user => {
+            // --- AUTHENTICATION & ACCESS CONTROL ---
+            auth.onAuthStateChanged(async (user) => {
                 if (user) {
-                    loginScreen.classList.add('hidden');
-                    adminDashboard.classList.remove('hidden');
-                    fetchAndDisplayBuses();
+                    const userDoc = await db.collection('users').doc(user.uid).get();
+                    if (userDoc.exists && userDoc.data().role === 'admin') {
+                        currentUser = user;
+                        loginScreen.classList.add('hidden');
+                        dashboard.classList.remove('hidden');
+                        loadBuses();
+                    } else {
+                        alert('Access Denied. You must be an administrator to view this page.');
+                        auth.signOut();
+                    }
                 } else {
+                    currentUser = null;
                     loginScreen.classList.remove('hidden');
-                    adminDashboard.classList.add('hidden');
+                    dashboard.classList.add('hidden');
+                    if (unsubscribe) unsubscribe();
                 }
             });
 
@@ -267,225 +239,260 @@
                 e.preventDefault();
                 const email = document.getElementById('email').value;
                 const password = document.getElementById('password').value;
-                loginError.textContent = '';
                 auth.signInWithEmailAndPassword(email, password)
-                    .catch(error => { loginError.textContent = error.message; });
+                    .catch(error => {
+                        document.getElementById('login-error').textContent = error.message;
+                    });
             });
 
-            logoutButton.addEventListener('click', () => { auth.signOut(); });
-            openBulkModalBtn.addEventListener('click', () => bulkAddModal.classList.remove('hidden'));
-            cancelBulkAddButton.addEventListener('click', () => bulkAddModal.classList.add('hidden'));
-            cancelEditButton.addEventListener('click', () => editModal.classList.add('hidden'));
+            logoutButton.addEventListener('click', () => auth.signOut());
+            
+            // --- DATA HANDLING ---
+            function loadBuses() {
+                if (unsubscribe) unsubscribe(); // Detach previous listener
+                unsubscribe = db.collection('buses').orderBy('sortOrder').onSnapshot(snapshot => {
+                    loading.style.display = 'none';
+                    const buses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderBusTable(buses);
+                }, error => {
+                    console.error("Error fetching buses:", error);
+                    loading.textContent = "Error loading data. Check console.";
+                });
+            }
 
-            const createDayCheckboxes = (containerId, prefix = '') => {
+            function renderBusTable(buses) {
+                busListContainer.innerHTML = '';
+                if (buses.length === 0) {
+                    busListContainer.innerHTML = '<p>No buses in the timetable. Add one to get started.</p>';
+                    return;
+                }
+                const table = document.createElement('table');
+                table.className = 'min-w-full divide-y divide-gray-200';
+                table.innerHTML = `
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From &rarr; To</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bus-table-body" class="bg-white divide-y divide-gray-200"></tbody>`;
+                busListContainer.appendChild(table);
+                const tbody = document.getElementById('bus-table-body');
+                
+                buses.forEach(bus => {
+                    const tr = document.createElement('tr');
+                    tr.dataset.id = bus.id;
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap"><span class="font-bold">${bus.route}</span><br><span class="text-sm text-gray-500">${bus.operator}</span></td>
+                        <td class="px-6 py-4 whitespace-nowrap">${bus.departsFrom}<br>${bus.arrivesAt}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${bus.departureTime}<br>${bus.arrivalTime}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-xs">${(bus.availability || []).join(', ')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-indigo-600 hover:text-indigo-900 edit-btn" data-id="${bus.id}">Edit</button>
+                            <button class="text-red-600 hover:text-red-900 ml-4 delete-btn" data-id="${bus.id}">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                // Init SortableJS for drag-and-drop
+                new Sortable(tbody, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: async (evt) => {
+                        const orderedIds = Array.from(evt.target.children).map(child => child.dataset.id);
+                        const batch = db.batch();
+                        orderedIds.forEach((id, index) => {
+                            const docRef = db.collection('buses').doc(id);
+                            batch.update(docRef, { sortOrder: index });
+                        });
+                        await batch.commit();
+                    }
+                });
+            }
+            
+            busListContainer.addEventListener('click', async (e) => {
+                const busId = e.target.dataset.id;
+                if (e.target.classList.contains('edit-btn')) {
+                    const doc = await db.collection('buses').doc(busId).get();
+                    openModal('Edit Bus', doc.data(), busId);
+                }
+                if (e.target.classList.contains('delete-btn')) {
+                    if (confirm('Are you sure you want to delete this bus?')) {
+                        await db.collection('buses').doc(busId).delete();
+                    }
+                }
+            });
+
+            // --- MODAL HANDLING ---
+            function openModal(title, busData = {}, busId = null) {
+                modalTitle.textContent = title;
+                busForm.reset();
+                busForm['bus-id'].value = busId || '';
+                
+                if (busData) {
+                    busForm.route.value = busData.route || '';
+                    busForm.operator.value = busData.operator || '';
+                    busForm.departsFrom.value = busData.departsFrom || '';
+                    busForm.arrivesAt.value = busData.arrivesAt || '';
+                    busForm.departureTime.value = busData.departureTime || '';
+                    busForm.arrivalTime.value = busData.arrivalTime || '';
+                    busForm.price.value = busData.price || '';
+                    busForm.expresswayEntrance.value = busData.expresswayEntrance || '';
+                    busForm.expresswayExit.value = busData.expresswayExit || '';
+                    busForm.stops.value = (busData.stops || []).join('\n');
+                    
+                    const availability = busData.availability || [];
+                    document.querySelectorAll('#availability-checkboxes input').forEach(cb => {
+                        cb.checked = availability.includes(cb.value);
+                    });
+                }
+                busModal.classList.remove('hidden');
+            }
+
+            const setupCheckboxes = (containerId) => {
                 const container = document.getElementById(containerId);
                 container.innerHTML = '';
+                const allDaysCheckbox = document.createElement('div');
+                allDaysCheckbox.className = 'col-span-full mb-2';
+                allDaysCheckbox.innerHTML = `<label class="font-semibold"><input type="checkbox" class="select-all"> Select All Days</label>`;
+                container.appendChild(allDaysCheckbox);
+
                 daysOfWeek.forEach(day => {
-                    container.innerHTML += `<label class="flex items-center space-x-2"><input type="checkbox" name="${prefix}day" value="${day}" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>${day}</span></label>`;
+                    const div = document.createElement('div');
+                    div.innerHTML = `<label><input type="checkbox" value="${day}" class="day-checkbox"> ${day}</label>`;
+                    container.appendChild(div);
                 });
-                container.innerHTML += `<label class="flex items-center space-x-2 font-bold"><input type="checkbox" id="${prefix}select-all-days" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>All Days</span></label>`;
-                document.getElementById(`${prefix}select-all-days`).addEventListener('change', (e) => {
-                    document.querySelectorAll(`input[name="${prefix}day"]`).forEach(checkbox => checkbox.checked = e.target.checked);
+
+                container.querySelector('.select-all').addEventListener('change', (e) => {
+                    container.querySelectorAll('.day-checkbox').forEach(cb => cb.checked = e.target.checked);
                 });
             };
-
-            const getSelectedDays = (prefix = '') => Array.from(document.querySelectorAll(`input[name="${prefix}day"]:checked`)).map(cb => cb.value);
             
-            createDayCheckboxes('add-availability', 'add-');
-            createDayCheckboxes('edit-availability', 'edit-');
-            createDayCheckboxes('bulk-availability', 'bulk-');
+            setupCheckboxes('availability-checkboxes');
+            setupCheckboxes('bulk-availability-checkboxes');
 
-            let sortableInstance = null;
+            showAddModal.addEventListener('click', () => openModal('Add New Bus'));
+            closeModal.addEventListener('click', () => busModal.classList.add('hidden'));
             
-            const fetchAndDisplayBuses = async () => {
-                busList.innerHTML = '<tr><td colspan="6" class="text-center p-4">Loading...</td></tr>';
-                try {
-                    const snapshot = await busesCollection.orderBy('sortOrder').get();
-                    if (snapshot.empty) {
-                        busList.innerHTML = '<tr><td colspan="6" class="text-center p-4">No bus routes found.</td></tr>';
-                        return;
-                    }
-                    busList.innerHTML = '';
-                    snapshot.forEach(doc => {
-                        const bus = { id: doc.id, ...doc.data() };
-                        const row = document.createElement('tr');
-                        row.dataset.id = bus.id;
-                        row.className = 'hover:bg-gray-50 cursor-move';
-                        row.innerHTML = `
-                            <td class="p-3 font-medium">${bus.route}</td>
-                            <td class="p-3">${bus.departsFrom}</td>
-                            <td class="p-3">${bus.arrivesAt}</td>
-                            <td class="p-3 text-sm">${bus.expresswayEntrance || 'N/A'} → ${bus.expresswayExit || 'N/A'}</td>
-                            <td class="p-3">${bus.departureTime}</td>
-                            <td class="p-3 text-right">
-                                <button class="edit-btn bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600" data-id="${bus.id}">Edit</button>
-                                <button class="delete-btn bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 ml-2" data-id="${bus.id}">Delete</button>
-                            </td>
-                        `;
-                        busList.appendChild(row);
-                    });
-
-                    if(sortableInstance) sortableInstance.destroy();
-                    sortableInstance = new Sortable(busList, {
-                        animation: 150,
-                        ghostClass: 'ghost',
-                        onEnd: async () => {
-                            const orderedIds = Array.from(busList.children).map(row => row.dataset.id);
-                            const batch = db.batch();
-                            orderedIds.forEach((id, index) => batch.update(busesCollection.doc(id), { sortOrder: index }));
-                            await batch.commit();
-                        }
-                    });
-                } catch (error) {
-                    console.error("Error fetching buses: ", error);
-                    busList.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-red-500">Failed to load data.</td></tr>';
-                }
-            };
-
-            addBusForm.addEventListener('submit', async (e) => {
+            busForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const lastBusSnapshot = await busesCollection.orderBy('sortOrder', 'desc').limit(1).get();
-                const lastOrder = lastBusSnapshot.empty ? -1 : lastBusSnapshot.docs[0].data().sortOrder;
-                const newBus = {
-                    route: document.getElementById('add-route').value,
-                    operator: document.getElementById('add-operator').value,
-                    departsFrom: document.getElementById('add-departsFrom').value,
-                    arrivesAt: document.getElementById('add-arrivesAt').value,
-                    departureTime: document.getElementById('add-departureTime').value,
-                    arrivalTime: document.getElementById('add-arrivalTime').value,
-                    price: document.getElementById('add-price').value,
-                    expresswayEntrance: document.getElementById('add-expresswayEntrance').value,
-                    expresswayExit: document.getElementById('add-expresswayExit').value,
-                    stops: document.getElementById('add-stops').value.split(',').map(s => s.trim()).filter(Boolean),
-                    availability: getSelectedDays('add-'),
-                    sortOrder: lastOrder + 1
+                const busId = busForm['bus-id'].value;
+                const stops = busForm.stops.value.split('\n').map(s => s.trim()).filter(Boolean);
+                const availability = Array.from(document.querySelectorAll('#availability-checkboxes input:checked'))
+                                       .map(cb => cb.value).filter(v => daysOfWeek.includes(v));
+
+                const busData = {
+                    route: busForm.route.value,
+                    operator: busForm.operator.value,
+                    departsFrom: busForm.departsFrom.value,
+                    arrivesAt: busForm.arrivesAt.value,
+                    departureTime: busForm.departureTime.value,
+                    arrivalTime: busForm.arrivalTime.value,
+                    price: busForm.price.value,
+                    expresswayEntrance: busForm.expresswayEntrance.value,
+                    expresswayExit: busForm.expresswayExit.value,
+                    stops,
+                    availability
                 };
-                await busesCollection.add(newBus);
-                addBusForm.reset();
-                fetchAndDisplayBuses();
-            });
 
-            busList.addEventListener('click', async (e) => {
-                const id = e.target.dataset.id;
-                if (e.target.classList.contains('delete-btn')) {
-                    if (confirm('Are you sure?')) {
-                        await busesCollection.doc(id).delete();
-                        fetchAndDisplayBuses();
-                    }
-                } else if (e.target.classList.contains('edit-btn')) {
-                    const doc = await busesCollection.doc(id).get();
-                    const bus = doc.data();
-                    document.getElementById('edit-id').value = id;
-                    document.getElementById('edit-route').value = bus.route;
-                    document.getElementById('edit-operator').value = bus.operator;
-                    document.getElementById('edit-departsFrom').value = bus.departsFrom;
-                    document.getElementById('edit-arrivesAt').value = bus.arrivesAt;
-                    document.getElementById('edit-departureTime').value = bus.departureTime;
-                    document.getElementById('edit-arrivalTime').value = bus.arrivalTime;
-                    document.getElementById('edit-price').value = bus.price;
-                    document.getElementById('edit-expresswayEntrance').value = bus.expresswayEntrance || '';
-                    document.getElementById('edit-expresswayExit').value = bus.expresswayExit || '';
-                    document.getElementById('edit-stops').value = (bus.stops || []).join(', ');
-                    document.querySelectorAll('input[name="edit-day"]').forEach(cb => cb.checked = (bus.availability || []).includes(cb.value));
-                    editModal.classList.remove('hidden');
+                if (busId) {
+                    await db.collection('buses').doc(busId).update(busData);
+                } else {
+                    const docRef = await db.collection('buses').orderBy('sortOrder', 'desc').limit(1).get();
+                    const maxOrder = docRef.empty ? -1 : docRef.docs[0].data().sortOrder;
+                    busData.sortOrder = maxOrder + 1;
+                    busData.status = 'Scheduled'; // Default status for new buses
+                    await db.collection('buses').add(busData);
                 }
-            });
-            
-            editBusForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const id = document.getElementById('edit-id').value;
-                const updatedBus = {
-                    route: document.getElementById('edit-route').value,
-                    operator: document.getElementById('edit-operator').value,
-                    departsFrom: document.getElementById('edit-departsFrom').value,
-                    arrivesAt: document.getElementById('edit-arrivesAt').value,
-                    departureTime: document.getElementById('edit-departureTime').value,
-                    arrivalTime: document.getElementById('edit-arrivalTime').value,
-                    price: document.getElementById('edit-price').value,
-                    expresswayEntrance: document.getElementById('edit-expresswayEntrance').value,
-                    expresswayExit: document.getElementById('edit-expresswayExit').value,
-                    stops: document.getElementById('edit-stops').value.split(',').map(s => s.trim()).filter(Boolean),
-                    availability: getSelectedDays('edit-')
-                };
-                await busesCollection.doc(id).update(updatedBus);
-                editModal.classList.add('hidden');
-                fetchAndDisplayBuses();
+                busModal.classList.add('hidden');
             });
 
-            bulkAddForm.addEventListener('submit', async (e) => {
+            // --- BULK ADD MODAL ---
+            showBulkAddModal.addEventListener('click', () => {
+                bulkBusForm.reset();
+                bulkAddMessage.textContent = '';
+                bulkAddModal.classList.remove('hidden');
+            });
+            closeBulkModal.addEventListener('click', () => bulkAddModal.classList.add('hidden'));
+
+            bulkBusForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const button = e.target.querySelector('button[type="submit"]');
-                button.disabled = true;
-                button.textContent = 'Generating...';
+                bulkAddMessage.textContent = 'Generating buses, please wait...';
+                bulkAddMessage.className = 'text-sm font-medium text-blue-600';
 
                 try {
                     const commonData = {
-                        route: document.getElementById('bulk-route').value,
                         operator: document.getElementById('bulk-operator').value,
                         departsFrom: document.getElementById('bulk-departsFrom').value,
                         arrivesAt: document.getElementById('bulk-arrivesAt').value,
                         price: document.getElementById('bulk-price').value,
                         expresswayEntrance: document.getElementById('bulk-expresswayEntrance').value,
                         expresswayExit: document.getElementById('bulk-expresswayExit').value,
-                        stops: document.getElementById('bulk-stops').value.split(',').map(s => s.trim()).filter(Boolean),
-                        availability: getSelectedDays('bulk-')
+                        stops: document.getElementById('bulk-stops').value.split('\n').map(s => s.trim()).filter(Boolean),
+                        availability: Array.from(document.querySelectorAll('#bulk-availability-checkboxes input:checked')).map(cb => cb.value).filter(v => daysOfWeek.includes(v)),
+                        status: 'Scheduled'
                     };
-
+                    const routeBase = document.getElementById('bulk-route').value;
                     const startTime = document.getElementById('bulk-startTime').value;
                     const endTime = document.getElementById('bulk-endTime').value;
                     const frequency = parseInt(document.getElementById('bulk-frequency').value, 10);
-                    const travelDuration = parseInt(document.getElementById('bulk-travel-duration').value, 10);
-                    
-                    if(!startTime || !endTime || !frequency || !travelDuration) {
-                        alert("Please fill all time-related fields.");
-                        return;
+                    const duration = parseInt(document.getElementById('bulk-duration').value, 10);
+
+                    if (!startTime || !endTime || isNaN(frequency) || isNaN(duration) || frequency <= 0) {
+                        throw new Error("Please fill in all time and frequency fields correctly.");
                     }
-
-                    const startDate = new Date(`1970-01-01T${startTime}:00`);
-                    const endDate = new Date(`1970-01-01T${endTime}:00`);
-
-                    const lastBusSnapshot = await busesCollection.orderBy('sortOrder', 'desc').limit(1).get();
-                    let currentSortOrder = lastBusSnapshot.empty ? 0 : lastBusSnapshot.docs[0].data().sortOrder + 1;
-
+                    
+                    const startMinutes = timeToMinutes(startTime);
+                    const endMinutes = timeToMinutes(endTime);
+                    
                     const batch = db.batch();
                     let busCount = 0;
+                    const docRef = await db.collection('buses').orderBy('sortOrder', 'desc').limit(1).get();
+                    let currentSortOrder = docRef.empty ? 0 : docRef.docs[0].data().sortOrder + 1;
 
-                    for (let d = new Date(startDate); d <= endDate; d.setMinutes(d.getMinutes() + frequency)) {
-                        const departureTime = d.toTimeString().substring(0, 5);
-                        const arrivalDate = new Date(d.getTime() + travelDuration * 60000);
-                        const arrivalTime = arrivalDate.toTimeString().substring(0, 5);
-
+                    for (let depMinutes = startMinutes; depMinutes <= endMinutes; depMinutes += frequency) {
+                        const arrMinutes = depMinutes + duration;
                         const newBus = {
                             ...commonData,
-                            departureTime,
-                            arrivalTime,
+                            route: `${routeBase}/${String(busCount + 1).padStart(2, '0')}`,
+                            departureTime: minutesToTime(depMinutes),
+                            arrivalTime: minutesToTime(arrMinutes),
                             sortOrder: currentSortOrder++
                         };
-                        
-                        const newBusRef = busesCollection.doc(); // Auto-generate ID
-                        batch.set(newBusRef, newBus);
+                        const newDocRef = db.collection('buses').doc();
+                        batch.set(newDocRef, newBus);
                         busCount++;
                     }
 
-                    if (busCount > 0) {
-                        await batch.commit();
-                        alert(`${busCount} buses have been added successfully!`);
-                    } else {
-                        alert("No buses were generated. Check your start/end times.");
-                    }
+                    if (busCount === 0) throw new Error("No buses were generated. Check start/end times.");
+
+                    await batch.commit();
+                    bulkAddMessage.textContent = `Successfully added ${busCount} buses.`;
+                    bulkAddMessage.className = 'text-sm font-medium text-green-600';
+                    setTimeout(() => bulkAddModal.classList.add('hidden'), 2000);
 
                 } catch (error) {
                     console.error("Bulk add error:", error);
-                    alert("An error occurred during the bulk add operation.");
-                } finally {
-                    button.disabled = false;
-                    button.textContent = 'Generate and Add Buses';
-                    bulkAddForm.reset();
-                    bulkAddModal.classList.add('hidden');
-                    fetchAndDisplayBuses();
+                    bulkAddMessage.textContent = 'Error: ' + error.message;
+                    bulkAddMessage.className = 'text-sm font-medium text-red-600';
                 }
             });
-        }
+
+            const timeToMinutes = (time) => {
+                const [hours, minutes] = time.split(':').map(Number);
+                return hours * 60 + minutes;
+            };
+
+            const minutesToTime = (minutes) => {
+                const hours = Math.floor(minutes / 60) % 24;
+                const mins = minutes % 60;
+                return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+            };
+        });
     </script>
 </body>
 </html>
