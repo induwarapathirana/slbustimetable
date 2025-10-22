@@ -133,6 +133,10 @@
         const modeSingle = document.getElementById('mode-single');
         const modePersist = document.getElementById('mode-persist');
 
+        const fareSuggestionCache = new Map();
+        const FARE_SUGGESTION_TTL = 5 * 60 * 1000;
+        let suggestionRequestId = 0;
+
         function toggleView() {
             if (state.token) {
                 loginScreen.classList.add('hidden');
@@ -302,6 +306,66 @@
             return `<span class="px-2 py-1 text-xs font-semibold rounded-full ${classes}">${status || 'Scheduled'}</span>`;
         }
 
+        function markPriceAutofilled(input) {
+            input.dataset.autofilled = 'true';
+            input.classList.add('bg-amber-50', 'border-amber-300');
+        }
+
+        function markPriceManual(input) {
+            input.dataset.autofilled = 'false';
+            input.classList.remove('bg-amber-50', 'border-amber-300');
+        }
+
+        function clearAutofilledPrice(input) {
+            if (input.dataset.autofilled === 'true') {
+                input.value = '';
+                markPriceManual(input);
+            }
+        }
+
+        async function fetchFareSuggestionValue(origin, destination) {
+            const key = `${origin.toLowerCase()}|${destination.toLowerCase()}`;
+            const cached = fareSuggestionCache.get(key);
+            if (cached && Date.now() - cached.fetchedAt < FARE_SUGGESTION_TTL) {
+                return cached.price;
+            }
+            try {
+                const response = await fetchWithAuth(`/api/price-matrix/suggest?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`);
+                if (!response.ok) {
+                    fareSuggestionCache.set(key, { price: null, fetchedAt: Date.now() });
+                    return null;
+                }
+                const data = await response.json();
+                const price = data.price ? data.price.toString() : null;
+                fareSuggestionCache.set(key, { price, fetchedAt: Date.now() });
+                return price;
+            } catch (error) {
+                console.warn('Price suggestion failed', error);
+                fareSuggestionCache.set(key, { price: null, fetchedAt: Date.now() });
+                return null;
+            }
+        }
+
+        async function applyPriceSuggestion() {
+            const origin = addDepartsInput.value.trim();
+            const destination = addArrivesInput.value.trim();
+            if (!origin || !destination) {
+                clearAutofilledPrice(addPriceInput);
+                return;
+            }
+            const currentRequest = ++suggestionRequestId;
+            const suggestion = await fetchFareSuggestionValue(origin, destination);
+            if (currentRequest !== suggestionRequestId) {
+                return;
+            }
+            if (suggestion && (!addPriceInput.value || addPriceInput.dataset.autofilled === 'true')) {
+                addPriceInput.value = suggestion;
+                markPriceAutofilled(addPriceInput);
+            } else if (!suggestion) {
+                clearAutofilledPrice(addPriceInput);
+            }
+        }
+
         async function handleStatusChange(event) {
             if (!event.target.classList.contains('status-btn')) return;
             const id = event.target.dataset.id;
@@ -396,6 +460,7 @@
                 addBusMessage.textContent = `Saved ${data.route || payload.route} for ${mode === 'persist' ? 'the main timetable' : (state.scheduleMeta?.dateFormatted || state.selectedDate)}.`;
                 addBusMessage.className = 'text-sm text-green-600';
                 addBusForm.reset();
+                markPriceManual(addPriceInput);
                 updateAvailabilityVisibility();
                 if (state.user?.depot) {
                     addDepartsInput.value = state.user.depot;
@@ -449,8 +514,15 @@
         modeSingle.addEventListener('change', updateAvailabilityVisibility);
         modePersist.addEventListener('change', updateAvailabilityVisibility);
 
+        addDepartsInput.addEventListener('input', applyPriceSuggestion);
+        addDepartsInput.addEventListener('blur', applyPriceSuggestion);
+        addArrivesInput.addEventListener('input', applyPriceSuggestion);
+        addArrivesInput.addEventListener('blur', applyPriceSuggestion);
+        addPriceInput.addEventListener('input', () => markPriceManual(addPriceInput));
+
         renderAvailabilityCheckboxes(availabilityContainer);
         updateAvailabilityVisibility();
+        markPriceManual(addPriceInput);
         toggleView();
     </script>
 

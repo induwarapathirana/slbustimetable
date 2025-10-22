@@ -599,6 +599,23 @@ app.get('/api/price-matrix', authenticate, requireRole('admin'), (req, res) => {
   }
 });
 
+app.get('/api/price-matrix/suggest', authenticate, requireRole('admin', 'timekeeper'), (req, res) => {
+  const origin = (req.query.origin || '').trim();
+  const destination = (req.query.destination || '').trim();
+  if (!origin || !destination) {
+    return res.status(400).json({ message: 'Origin and destination are required.' });
+  }
+  try {
+    const suggestion = getFareForLocations.get(origin, destination);
+    if (!suggestion) {
+      return res.status(404).json({ message: 'No fare found.' });
+    }
+    res.json({ price: suggestion.price });
+  } catch (err) {
+    res.status(500).json({ message: 'Unable to load fare suggestion.' });
+  }
+});
+
 app.post('/api/price-matrix/locations', authenticate, requireRole('admin'), (req, res) => {
   const { name } = req.body || {};
   if (!name || !name.trim()) {
