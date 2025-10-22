@@ -17,15 +17,14 @@
             <h2 class="text-2xl font-bold text-center mb-6">Time Keeper Login</h2>
             <form id="login-form" class="space-y-4">
                 <div>
-                    <label for="identifier" class="block text-sm font-medium text-gray-700">Email or username</label>
-                    <input type="text" id="identifier" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="timekeeper@example.com or timekeeper" required>
+                    <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
                     <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Login</button>
-                <p class="text-xs text-gray-500 text-center">Default timekeeper credentials: <code>timekeeper@example.com</code> / <code>password</code> or username <code>timekeeper</code>.</p>
                 <p id="login-error" class="text-red-500 text-sm text-center"></p>
             </form>
         </div>
@@ -38,15 +37,9 @@
         </header>
 
         <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
-                <div>
-                    <h2 class="text-xl font-bold">Departures</h2>
-                    <p id="selected-day-label" class="text-sm text-gray-500">Loading day...</p>
-                </div>
-                <div class="flex flex-col sm:flex-row gap-3">
-                    <input type="date" id="schedule-date" class="px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
-                    <button id="refresh-button" class="bg-slate-200 text-slate-700 py-2 px-4 rounded-md hover:bg-slate-300">Refresh</button>
-                </div>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">Today's Departures</h2>
+                <button id="refresh-button" class="bg-slate-200 text-slate-700 py-2 px-4 rounded-md hover:bg-slate-300">Refresh</button>
             </div>
             <div id="schedule-container" class="space-y-4"></div>
         </div>
@@ -78,12 +71,12 @@
                     <label class="font-semibold text-sm text-gray-700">Intermediate Stops (one per line)</label>
                     <textarea id="add-stops" rows="3" class="w-full mt-2 p-2 border rounded" placeholder="Enter optional stops"></textarea>
                 </div>
-                <div id="availability-wrapper" class="space-y-2">
-                    <label class="font-semibold text-sm text-gray-700">Days (for timetable entries)</label>
-                    <div id="add-availability" class="grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="time" id="add-arrivalTime" class="w-full p-2 border rounded" placeholder="Optional arrival">
+                    <input type="text" id="add-price" class="w-full p-2 border rounded" placeholder="Optional fare">
                 </div>
                 <div class="text-right">
-                    <button type="submit" class="bg-blue-600 text-white py-2 px-6 rounded-md hover:bg-blue-700">Save Bus</button>
+                    <button type="submit" class="bg-blue-500 text-white py-2 px-6 rounded-md hover:bg-blue-600">Add Bus</button>
                 </div>
                 <p id="add-bus-message" class="text-sm"></p>
             </form>
@@ -95,14 +88,10 @@
     
     <script>
         const TOKEN_KEY = 'slbustimetable:token';
-        const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
         const state = {
             token: localStorage.getItem(TOKEN_KEY) || null,
             user: null,
-            schedule: [],
-            selectedDate: new Date().toISOString().slice(0, 10),
-            locations: []
+            schedule: []
         };
 
         const loginScreen = document.getElementById('login-screen');
@@ -113,45 +102,18 @@
         const refreshButton = document.getElementById('refresh-button');
         const depotNameEl = document.getElementById('depot-name');
         const scheduleContainer = document.getElementById('schedule-container');
-        const scheduleDateInput = document.getElementById('schedule-date');
-        const selectedDayLabel = document.getElementById('selected-day-label');
-        const locationDatalist = document.getElementById('timekeeper-locations');
-
         const addBusForm = document.getElementById('add-bus-form');
         const addBusMessage = document.getElementById('add-bus-message');
-        const addRouteInput = document.getElementById('add-route');
-        const addOperatorInput = document.getElementById('add-operator');
-        const addDepartsInput = document.getElementById('add-departsFrom');
-        const addArrivesInput = document.getElementById('add-arrivesAt');
-        const addDepartureTimeInput = document.getElementById('add-departureTime');
-        const addArrivalTimeInput = document.getElementById('add-arrivalTime');
-        const addPriceInput = document.getElementById('add-price');
-        const addEntranceInput = document.getElementById('add-expresswayEntrance');
-        const addExitInput = document.getElementById('add-expresswayExit');
-        const addStopsTextarea = document.getElementById('add-stops');
-        const availabilityWrapper = document.getElementById('availability-wrapper');
-        const availabilityContainer = document.getElementById('add-availability');
-        const modeSingle = document.getElementById('mode-single');
-        const modePersist = document.getElementById('mode-persist');
-
-        const fareSuggestionCache = new Map();
-        const FARE_SUGGESTION_TTL = 5 * 60 * 1000;
-        let suggestionRequestId = 0;
 
         function toggleView() {
             if (state.token) {
                 loginScreen.classList.add('hidden');
                 dashboard.classList.remove('hidden');
-                initializeControls();
                 fetchProfile();
             } else {
                 loginScreen.classList.remove('hidden');
                 dashboard.classList.add('hidden');
             }
-        }
-
-        function initializeControls() {
-            scheduleDateInput.value = state.selectedDate;
         }
 
         async function fetchWithAuth(url, options = {}) {
@@ -178,312 +140,23 @@
                 }
                 state.user = data;
                 depotNameEl.textContent = data.depot || 'Unknown depot';
-                if (data.depot) {
-                    addDepartsInput.value = data.depot;
-                }
-                await loadLocations();
-                await loadSchedule();
+                loadSchedule();
             } catch (error) {
                 loginError.textContent = error.message;
                 handleLogout();
             }
         }
 
-        function formatDateLabel(dateStr) {
-            const date = new Date(dateStr + 'T12:00:00');
-            const day = date.toLocaleString('en-US', { weekday: 'long' });
-            const formatted = date.toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-            return { day, formatted };
-        }
-
-        function updateSelectedDayLabel(meta) {
-            if (!meta || !meta.date) {
-                selectedDayLabel.textContent = 'Select a date to view departures.';
-                return;
-            }
-            selectedDayLabel.textContent = `${meta.day} · ${meta.dateFormatted} · ${meta.total} departures`;
-        }
-
-        async function loadLocations() {
-            try {
-                const response = await fetch('/api/locations');
-                if (!response.ok) throw new Error('Failed to load locations');
-                const data = await response.json();
-                state.locations = Array.isArray(data.locations) ? data.locations : [];
-                renderLocationOptions();
-            } catch (error) {
-                console.warn('Location load failed', error);
-            }
-        }
-
-        function renderLocationOptions() {
-            locationDatalist.innerHTML = '';
-            const unique = Array.from(new Set([...(state.locations || []), state.user?.depot].filter(Boolean))).sort((a, b) => a.localeCompare(b));
-            unique.forEach((name) => {
-                const option = document.createElement('option');
-                option.value = name;
-                locationDatalist.appendChild(option);
-            });
-        }
-
-        async function loadSchedule() {
-            scheduleContainer.innerHTML = '<p class="text-gray-500">Loading...</p>';
-            try {
-                const response = await fetchWithAuth(`/api/timekeeper/schedule?date=${encodeURIComponent(state.selectedDate)}`);
-                if (!response.ok) throw new Error('Failed to load schedule');
-                const data = await response.json();
-                state.schedule = data.buses || [];
-                const { day, formatted } = formatDateLabel(data.date || state.selectedDate);
-                state.scheduleMeta = {
-                    depot: data.depot,
-                    day,
-                    date: data.date || state.selectedDate,
-                    dateFormatted: formatted,
-                    total: state.schedule.length
-                };
-                updateSelectedDayLabel(state.scheduleMeta);
-                renderSchedule();
-            } catch (error) {
-                scheduleContainer.innerHTML = `<p class="text-red-500">${error.message}</p>`;
-            }
-        }
-
-        function renderSchedule() {
-            if (!state.schedule.length) {
-                scheduleContainer.innerHTML = `<div class="bg-slate-50 border border-dashed border-slate-200 rounded-lg p-6 text-center text-gray-500">No departures for ${state.scheduleMeta?.day || 'the selected day'}. Use the form below to add a bus.</div>`;
-                return;
-            }
-            scheduleContainer.innerHTML = '';
-            state.schedule.forEach((bus) => {
-                const statusBadge = renderStatusBadge(bus.status);
-                const availabilityTags = Array.isArray(bus.availability) && bus.availability.length
-                    ? bus.availability.map(day => `<span class="px-2 py-1 text-xs bg-slate-100 text-slate-700 rounded-full">${day}</span>`).join(' ')
-                    : '<span class="px-2 py-1 text-xs bg-slate-100 text-slate-500 rounded-full">Daily</span>';
-                const stops = Array.isArray(bus.stops) && bus.stops.length
-                    ? `<p class="text-xs text-gray-500 mt-1"><span class="font-medium text-gray-600">Stops:</span> ${bus.stops.join(', ')}</p>`
-                    : '';
-                const isDaily = bus.isDaily;
-                const card = document.createElement('div');
-                card.className = 'bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex flex-col gap-4';
-                card.innerHTML = `
-                    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
-                        <div>
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <span class="font-semibold text-lg text-gray-800">${bus.departureTime} → ${bus.arrivalTime || '—'}</span>
-                                ${statusBadge}
-                                ${isDaily ? '<span class="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-700">Single-day</span>' : ''}
-                            </div>
-                            <p class="text-gray-600">${bus.departsFrom} → <span class="font-medium">${bus.arrivesAt}</span></p>
-                            <p class="text-xs text-gray-500">Route ${bus.route} · ${bus.operator}</p>
-                            ${stops}
-                        </div>
-                        <div class="text-right space-y-1">
-                            <p class="text-sm text-gray-500">Price</p>
-                            <p class="text-lg font-semibold text-indigo-600">${bus.price || '—'}</p>
-                            <div class="flex flex-wrap gap-1 justify-end">${availabilityTags}</div>
-                        </div>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                        ${['Scheduled', 'Departed', 'Arrived', 'Delayed', 'Cancelled'].map(status => {
-                            const isActive = (bus.status || 'Scheduled') === status;
-                            const base = isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200';
-                            return `<button data-id="${bus.id}" data-status="${status}" data-type="${isDaily ? 'daily' : 'permanent'}" class="status-btn px-3 py-1 text-xs rounded-full ${base}">${status}</button>`;
-                        }).join('')}
-                    </div>
-                `;
-                scheduleContainer.appendChild(card);
-            });
-        }
-
-        function renderStatusBadge(status) {
-            const map = {
-                'Scheduled': 'bg-slate-100 text-slate-700',
-                'Departed': 'bg-emerald-100 text-emerald-700',
-                'Arrived': 'bg-blue-100 text-blue-700',
-                'Delayed': 'bg-amber-100 text-amber-700',
-                'Cancelled': 'bg-rose-100 text-rose-700'
-            };
-            const classes = map[status] || map['Scheduled'];
-            return `<span class="px-2 py-1 text-xs font-semibold rounded-full ${classes}">${status || 'Scheduled'}</span>`;
-        }
-
-        function markPriceAutofilled(input) {
-            input.dataset.autofilled = 'true';
-            input.classList.add('bg-amber-50', 'border-amber-300');
-        }
-
-        function markPriceManual(input) {
-            input.dataset.autofilled = 'false';
-            input.classList.remove('bg-amber-50', 'border-amber-300');
-        }
-
-        function clearAutofilledPrice(input) {
-            if (input.dataset.autofilled === 'true') {
-                input.value = '';
-                markPriceManual(input);
-            }
-        }
-
-        async function fetchFareSuggestionValue(origin, destination) {
-            const key = `${origin.toLowerCase()}|${destination.toLowerCase()}`;
-            const cached = fareSuggestionCache.get(key);
-            if (cached && Date.now() - cached.fetchedAt < FARE_SUGGESTION_TTL) {
-                return cached.price;
-            }
-            try {
-                const response = await fetchWithAuth(`/api/price-matrix/suggest?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`);
-                if (!response.ok) {
-                    fareSuggestionCache.set(key, { price: null, fetchedAt: Date.now() });
-                    return null;
-                }
-                const data = await response.json();
-                const price = data.price ? data.price.toString() : null;
-                fareSuggestionCache.set(key, { price, fetchedAt: Date.now() });
-                return price;
-            } catch (error) {
-                console.warn('Price suggestion failed', error);
-                fareSuggestionCache.set(key, { price: null, fetchedAt: Date.now() });
-                return null;
-            }
-        }
-
-        async function applyPriceSuggestion() {
-            const origin = addDepartsInput.value.trim();
-            const destination = addArrivesInput.value.trim();
-            if (!origin || !destination) {
-                clearAutofilledPrice(addPriceInput);
-                return;
-            }
-            const currentRequest = ++suggestionRequestId;
-            const suggestion = await fetchFareSuggestionValue(origin, destination);
-            if (currentRequest !== suggestionRequestId) {
-                return;
-            }
-            if (suggestion && (!addPriceInput.value || addPriceInput.dataset.autofilled === 'true')) {
-                addPriceInput.value = suggestion;
-                markPriceAutofilled(addPriceInput);
-            } else if (!suggestion) {
-                clearAutofilledPrice(addPriceInput);
-            }
-        }
-
-        async function handleStatusChange(event) {
-            if (!event.target.classList.contains('status-btn')) return;
-            const id = event.target.dataset.id;
-            const status = event.target.dataset.status;
-            const type = event.target.dataset.type;
-            try {
-                let response;
-                if (type === 'daily') {
-                    response = await fetchWithAuth(`/api/timekeeper/daily-buses/${id}/status`, {
-                        method: 'PATCH',
-                        body: JSON.stringify({ status })
-                    });
-                } else {
-                    response = await fetchWithAuth(`/api/buses/${id}/status`, {
-                        method: 'PATCH',
-                        body: JSON.stringify({ status, date: state.selectedDate })
-                    });
-                }
-                if (!response.ok) {
-                    const data = await response.json().catch(() => ({}));
-                    throw new Error(data.message || 'Failed to update status');
-                }
-                await loadSchedule();
-            } catch (error) {
-                alert(error.message);
-            }
-        }
-
-        function renderAvailabilityCheckboxes(container) {
-            container.innerHTML = '';
-            DAYS.forEach(day => {
-                const label = document.createElement('label');
-                label.className = 'flex items-center gap-2 text-sm';
-                label.innerHTML = `<input type="checkbox" value="${day}" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>${day}</span>`;
-                container.appendChild(label);
-            });
-        }
-
-        function getSelectedDays(container) {
-            return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(el => el.value);
-        }
-
-        function updateAvailabilityVisibility() {
-            const mode = document.querySelector('input[name="add-mode"]:checked').value;
-            availabilityWrapper.classList.toggle('hidden', mode !== 'persist');
-        }
-
-        async function handleAddBus(event) {
-            event.preventDefault();
-            addBusMessage.textContent = '';
-            const mode = document.querySelector('input[name="add-mode"]:checked').value;
-            const selectedDay = formatDateLabel(state.selectedDate).day;
-            const payload = {
-                route: addRouteInput.value.trim(),
-                operator: addOperatorInput.value.trim(),
-                departsFrom: addDepartsInput.value.trim() || state.user?.depot || '',
-                arrivesAt: addArrivesInput.value.trim(),
-                departureTime: addDepartureTimeInput.value,
-                arrivalTime: addArrivalTimeInput.value,
-                price: addPriceInput.value.trim(),
-                expresswayEntrance: addEntranceInput.value.trim(),
-                expresswayExit: addExitInput.value.trim(),
-                stops: addStopsTextarea.value.split(/
-/).map(line => line.trim()).filter(Boolean),
-                availability: mode === 'persist' ? getSelectedDays(availabilityContainer) : [selectedDay],
-                persist: mode === 'persist',
-                date: state.selectedDate
-            };
-
-            if (!payload.route || !payload.operator || !payload.departsFrom || !payload.arrivesAt || !payload.departureTime) {
-                addBusMessage.textContent = 'Please complete the required fields.';
-                addBusMessage.className = 'text-sm text-red-600';
-                return;
-            }
-
-            if (payload.persist && payload.availability.length === 0) {
-                addBusMessage.textContent = 'Select at least one day for timetable entries.';
-                addBusMessage.className = 'text-sm text-red-600';
-                return;
-            }
-
-            try {
-                const response = await fetchWithAuth('/api/timekeeper/buses', {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json();
-                if (!response.ok) {
-                    const message = (data.errors && data.errors.join(', ')) || data.message || 'Failed to add bus';
-                    throw new Error(message);
-                }
-                addBusMessage.textContent = `Saved ${data.route || payload.route} for ${mode === 'persist' ? 'the main timetable' : (state.scheduleMeta?.dateFormatted || state.selectedDate)}.`;
-                addBusMessage.className = 'text-sm text-green-600';
-                addBusForm.reset();
-                markPriceManual(addPriceInput);
-                updateAvailabilityVisibility();
-                if (state.user?.depot) {
-                    addDepartsInput.value = state.user.depot;
-                }
-                await loadSchedule();
-                await loadLocations();
-            } catch (error) {
-                addBusMessage.textContent = error.message;
-                addBusMessage.className = 'text-sm text-red-600';
-            }
-        }
-
         async function handleLogin(event) {
             event.preventDefault();
             loginError.textContent = '';
-            const identifier = document.getElementById('identifier').value.trim();
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             try {
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ identifier, password })
+                    body: JSON.stringify({ email, password })
                 });
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.message || 'Login failed');
@@ -503,27 +176,116 @@
             toggleView();
         }
 
+        async function loadSchedule() {
+            scheduleContainer.innerHTML = '<p class="text-gray-500">Loading...</p>';
+            try {
+                const response = await fetchWithAuth('/api/timekeeper/schedule/today');
+                if (!response.ok) throw new Error('Failed to load schedule');
+                const data = await response.json();
+                state.schedule = data.buses || [];
+                renderSchedule();
+            } catch (error) {
+                scheduleContainer.innerHTML = `<p class="text-red-500">${error.message}</p>`;
+            }
+        }
+
+        function renderSchedule() {
+            if (!state.schedule.length) {
+                scheduleContainer.innerHTML = '<p class="text-center text-gray-500">No scheduled departures for today.</p>';
+                return;
+            }
+            scheduleContainer.innerHTML = '';
+            state.schedule.forEach(bus => {
+                const statusPill = renderStatusPill(bus.status);
+                const card = document.createElement('div');
+                card.className = `p-4 border-l-4 bg-white rounded-md shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${statusPill.border}`;
+                card.innerHTML = `
+                    <div>
+                        <p class="font-bold text-lg">${bus.departureTime} → ${bus.arrivalTime || 'N/A'} | ${bus.arrivesAt}</p>
+                        <p class="text-sm text-gray-600">${bus.route} (${bus.operator})</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold text-sm">Status:</span>
+                        ${statusPill.badge}
+                        ${['Scheduled','Delayed'].includes(bus.status || 'Scheduled') ? '<button data-id="'+bus.id+'" data-status="Departed" class="status-btn bg-green-500 text-white px-3 py-1 text-xs rounded-full hover:bg-green-600">Departed</button>' : ''}
+                        <button data-id="${bus.id}" data-status="Arrived" class="status-btn bg-blue-500 text-white px-3 py-1 text-xs rounded-full hover:bg-blue-600">Arrived</button>
+                        <button data-id="${bus.id}" data-status="Delayed" class="status-btn bg-yellow-500 text-white px-3 py-1 text-xs rounded-full hover:bg-yellow-600">Delayed</button>
+                        <button data-id="${bus.id}" data-status="Cancelled" class="status-btn bg-red-500 text-white px-3 py-1 text-xs rounded-full hover:bg-red-600">Cancelled</button>
+                    </div>`;
+                scheduleContainer.appendChild(card);
+            });
+        }
+
+        function renderStatusPill(status) {
+            const map = {
+                'Scheduled': { badge: '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700">Scheduled</span>', border: 'border-gray-300' },
+                'Departed': { badge: '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700">Departed</span>', border: 'border-green-500' },
+                'Arrived': { badge: '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">Arrived</span>', border: 'border-blue-500' },
+                'Delayed': { badge: '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-700">Delayed</span>', border: 'border-yellow-500' },
+                'Cancelled': { badge: '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700">Cancelled</span>', border: 'border-red-500' }
+            };
+            return map[status] || map['Scheduled'];
+        }
+
+        async function handleStatusChange(event) {
+            if (!event.target.classList.contains('status-btn')) return;
+            const id = event.target.dataset.id;
+            const status = event.target.dataset.status;
+            try {
+                const response = await fetchWithAuth(`/api/buses/${id}/status`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ status })
+                });
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.message || 'Failed to update status');
+                }
+                loadSchedule();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        async function handleAddBus(event) {
+            event.preventDefault();
+            addBusMessage.textContent = '';
+            if (!state.user || !state.user.depot) {
+                addBusMessage.textContent = 'Your profile is missing a depot assignment.';
+                addBusMessage.className = 'text-sm text-red-600';
+                return;
+            }
+            const payload = {
+                route: document.getElementById('add-route').value.trim(),
+                operator: document.getElementById('add-operator').value.trim(),
+                arrivesAt: document.getElementById('add-arrivesAt').value.trim(),
+                departureTime: document.getElementById('add-departureTime').value,
+                arrivalTime: document.getElementById('add-arrivalTime').value,
+                price: document.getElementById('add-price').value.trim(),
+                availability: [new Date().toLocaleString('en-US', { weekday: 'long' })]
+            };
+            try {
+                const response = await fetchWithAuth('/api/timekeeper/buses', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error((data.errors && data.errors.join(', ')) || data.message || 'Failed to add bus');
+                addBusMessage.textContent = `Added ${data.route} departure.`;
+                addBusMessage.className = 'text-sm text-green-600';
+                addBusForm.reset();
+                loadSchedule();
+            } catch (error) {
+                addBusMessage.textContent = error.message;
+                addBusMessage.className = 'text-sm text-red-600';
+            }
+        }
+
         loginForm.addEventListener('submit', handleLogin);
         logoutButton.addEventListener('click', handleLogout);
         refreshButton.addEventListener('click', loadSchedule);
-        scheduleDateInput.addEventListener('change', () => {
-            state.selectedDate = scheduleDateInput.value || new Date().toISOString().slice(0, 10);
-            loadSchedule();
-        });
         scheduleContainer.addEventListener('click', handleStatusChange);
         addBusForm.addEventListener('submit', handleAddBus);
-        modeSingle.addEventListener('change', updateAvailabilityVisibility);
-        modePersist.addEventListener('change', updateAvailabilityVisibility);
 
-        addDepartsInput.addEventListener('input', applyPriceSuggestion);
-        addDepartsInput.addEventListener('blur', applyPriceSuggestion);
-        addArrivesInput.addEventListener('input', applyPriceSuggestion);
-        addArrivesInput.addEventListener('blur', applyPriceSuggestion);
-        addPriceInput.addEventListener('input', () => markPriceManual(addPriceInput));
-
-        renderAvailabilityCheckboxes(availabilityContainer);
-        updateAvailabilityVisibility();
-        markPriceManual(addPriceInput);
         toggleView();
     </script>
 

@@ -23,15 +23,14 @@
             <h2 class="text-2xl font-bold text-center mb-6">Admin Panel Login</h2>
             <form id="login-form" class="space-y-4">
                 <div>
-                    <label for="identifier" class="block text-sm font-medium text-gray-700">Email or username</label>
-                    <input type="text" id="identifier" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="admin@example.com or admin" required>
+                    <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
                     <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Login</button>
-                <p class="text-xs text-gray-500 text-center">Default admin credentials: <code>admin@example.com</code> / <code>password</code> (you can also use username <code>admin</code>).</p>
                 <p id="login-error" class="text-red-500 text-sm text-center"></p>
             </form>
         </div>
@@ -236,9 +235,6 @@
             token: localStorage.getItem(TOKEN_KEY) || null,
             buses: [],
             sortable: null,
-            locations: [],
-            fares: [],
-            fareLookup: {},
         };
 
         const loginScreen = document.getElementById('login-screen');
@@ -262,9 +258,6 @@
         const busIdInput = document.getElementById('bus-id');
         const availabilityContainer = document.getElementById('availability-checkboxes');
         const stopsTextarea = document.getElementById('stops');
-        const priceInput = document.getElementById('price');
-        const departsFromInput = document.getElementById('departsFrom');
-        const arrivesAtInput = document.getElementById('arrivesAt');
 
         const bulkModal = document.getElementById('bulk-add-modal');
         const showBulkModalButton = document.getElementById('show-bulk-add-modal');
@@ -273,114 +266,8 @@
         const bulkAvailabilityContainer = document.getElementById('bulk-availability-checkboxes');
         const bulkStopsTextarea = document.getElementById('bulk-stops');
         const bulkMessage = document.getElementById('bulk-add-message');
-        const bulkPriceInput = document.getElementById('bulk-price');
-        const bulkDepartsInput = document.getElementById('bulk-departsFrom');
-        const bulkArrivesInput = document.getElementById('bulk-arrivesAt');
-
-        const locationForm = document.getElementById('location-form');
-        const locationNameInput = document.getElementById('location-name');
-        const locationMessage = document.getElementById('location-message');
-        const locationList = document.getElementById('location-list');
-        const locationDatalist = document.getElementById('locations-list');
-        const refreshMatrixButton = document.getElementById('refresh-matrix');
-
-        const fareForm = document.getElementById('fare-form');
-        const fareOriginInput = document.getElementById('fare-origin');
-        const fareDestinationInput = document.getElementById('fare-destination');
-        const farePriceInput = document.getElementById('fare-price');
-        const fareMessage = document.getElementById('fare-message');
-        const fareTable = document.getElementById('fare-table');
-        const fareEmpty = document.getElementById('fare-empty');
-
-        locationMessage.className = 'text-sm text-slate-500';
-        fareMessage.className = 'text-sm text-slate-500';
 
         const busFields = ['route', 'operator', 'departsFrom', 'arrivesAt', 'departureTime', 'arrivalTime', 'price', 'expresswayEntrance', 'expresswayExit'];
-
-        function buildFareLookup() {
-            state.fareLookup = {};
-            state.fares.forEach(fare => {
-                const key = `${fare.origin.toLowerCase()}|${fare.destination.toLowerCase()}`;
-                state.fareLookup[key] = fare.price;
-            });
-        }
-
-        function formatRelativeTime(value) {
-            if (!value) return 'just now';
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) return 'recently';
-            const diff = Date.now() - date.getTime();
-            if (diff < 60000) return 'moments ago';
-            if (diff < 3600000) {
-                const mins = Math.round(diff / 60000);
-                return `${mins} min${mins === 1 ? '' : 's'} ago`;
-            }
-            if (diff < 86400000) {
-                const hours = Math.round(diff / 3600000);
-                return `${hours} hr${hours === 1 ? '' : 's'} ago`;
-            }
-            const days = Math.round(diff / 86400000);
-            return `${days} day${days === 1 ? '' : 's'} ago`;
-        }
-
-        function updateLocationOptions() {
-            const unique = Array.from(new Set(state.locations)).sort((a, b) => a.localeCompare(b));
-            locationDatalist.innerHTML = '';
-            unique.forEach((name) => {
-                const option = document.createElement('option');
-                option.value = name;
-                locationDatalist.appendChild(option);
-            });
-        }
-
-        function renderLocationList() {
-            if (!state.locations.length) {
-                locationList.innerHTML = '<p class="text-sm text-gray-500 p-3">No destinations yet. Add one above.</p>';
-                return;
-            }
-            const sorted = Array.from(new Set(state.locations)).sort((a, b) => a.localeCompare(b));
-            locationList.innerHTML = sorted.map(name => `
-                <div class="px-3 py-2 flex items-center justify-between">
-                    <span class="text-sm text-gray-700">${name}</span>
-                </div>
-            `).join('');
-        }
-
-        function renderFareTable() {
-            fareTable.innerHTML = '';
-            if (!state.fares.length) {
-                fareEmpty.classList.remove('hidden');
-                return;
-            }
-            fareEmpty.classList.add('hidden');
-            state.fares.forEach(fare => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="px-3 py-2 text-gray-700">${fare.origin}</td>
-                    <td class="px-3 py-2 text-gray-700">${fare.destination}</td>
-                    <td class="px-3 py-2 font-medium text-gray-900">${fare.price}</td>
-                    <td class="px-3 py-2 text-right text-xs text-gray-500">${formatRelativeTime(fare.updatedAt)}</td>
-                `;
-                fareTable.appendChild(row);
-            });
-        }
-
-        function resetPriceAutofill(input) {
-            if (!input) return;
-            input.dataset.autofilled = 'false';
-            input.classList.remove('bg-amber-50', 'border-amber-300');
-        }
-
-        function applyPriceSuggestion(originValue, destinationValue, input) {
-            if (!input) return;
-            const key = `${originValue.trim().toLowerCase()}|${destinationValue.trim().toLowerCase()}`;
-            const suggested = state.fareLookup[key];
-            if (suggested && (!input.value || input.dataset.autofilled === 'true')) {
-                input.value = suggested;
-                input.dataset.autofilled = 'true';
-                input.classList.add('bg-amber-50', 'border-amber-300');
-            }
-        }
 
         function toggleView() {
             const isAuthenticated = Boolean(state.token);
@@ -388,7 +275,6 @@
                 loginScreen.classList.add('hidden');
                 dashboard.classList.remove('hidden');
                 loadBuses();
-                loadPriceMatrix();
             } else {
                 loginScreen.classList.remove('hidden');
                 dashboard.classList.add('hidden');
@@ -446,11 +332,7 @@
             stopsTextarea.value = bus && Array.isArray(bus.stops) ? bus.stops.join('
 ') : '';
             setSelectedDays(availabilityContainer, bus ? bus.availability : []);
-            resetPriceAutofill(priceInput);
             busModal.classList.remove('hidden');
-            if (!bus) {
-                applyPriceSuggestion(departsFromInput.value, arrivesAtInput.value, priceInput);
-            }
         }
 
         function closeBusModal() {
@@ -462,9 +344,7 @@
             bulkMessage.textContent = '';
             bulkStopsTextarea.value = '';
             setSelectedDays(bulkAvailabilityContainer, []);
-            resetPriceAutofill(bulkPriceInput);
             bulkModal.classList.remove('hidden');
-            applyPriceSuggestion(bulkDepartsInput.value || '', bulkArrivesInput.value || '', bulkPriceInput);
         }
 
         function closeBulkModal() {
@@ -474,13 +354,13 @@
         async function handleLogin(event) {
             event.preventDefault();
             loginError.textContent = '';
-            const identifier = document.getElementById('identifier').value.trim();
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             try {
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ identifier, password })
+                    body: JSON.stringify({ email, password })
                 });
                 const data = await response.json();
                 if (!response.ok) {
@@ -513,28 +393,6 @@
             } catch (error) {
                 console.error(error);
                 loading.textContent = 'Failed to load buses. Please refresh.';
-            }
-        }
-
-        async function loadPriceMatrix() {
-            try {
-                const response = await fetchWithAuth('/api/price-matrix');
-                if (!response.ok) throw new Error('Failed to load price matrix');
-                const data = await response.json();
-                state.locations = Array.isArray(data.locations) ? data.locations.map(item => item.name) : [];
-                state.fares = Array.isArray(data.fares) ? data.fares : [];
-                buildFareLookup();
-                renderLocationList();
-                renderFareTable();
-                updateLocationOptions();
-                locationMessage.textContent = '';
-                locationMessage.className = 'text-sm text-slate-500';
-                fareMessage.textContent = '';
-                fareMessage.className = 'text-sm text-slate-500';
-            } catch (error) {
-                console.error('Matrix load failed', error);
-                locationMessage.textContent = error.message;
-                locationMessage.className = 'text-sm text-red-600';
             }
         }
 
@@ -656,12 +514,13 @@
             }
             payload.availability = getSelectedDays(availabilityContainer);
             payload.stops = stopsTextarea.value
-                .split(/\n/)
+                .split(/
+?
+/)
                 .map(line => line.trim())
                 .filter(Boolean);
             return payload;
         }
-
 
         async function handleDelete(event) {
             const id = event.target.dataset.id;
@@ -687,10 +546,9 @@
             event.preventDefault();
             bulkMessage.textContent = '';
             const availability = getSelectedDays(bulkAvailabilityContainer);
-            const stops = bulkStopsTextarea.value
-                .split(/\n/)
-                .map(line => line.trim())
-                .filter(Boolean);
+            const stops = bulkStopsTextarea.value.split(/
+?
+/).map(line => line.trim()).filter(Boolean);
 
             const route = document.getElementById('bulk-route').value.trim();
             const operator = document.getElementById('bulk-operator').value.trim();
@@ -796,84 +654,6 @@
         closeBulkModalButton.addEventListener('click', closeBulkModal);
         bulkModal.addEventListener('click', (event) => { if (event.target === bulkModal) closeBulkModal(); });
         bulkForm.addEventListener('submit', handleBulkSubmit);
-
-        const handleBusLocationChange = () => applyPriceSuggestion(departsFromInput.value, arrivesAtInput.value, priceInput);
-        const handleBulkLocationChange = () => applyPriceSuggestion(bulkDepartsInput.value, bulkArrivesInput.value, bulkPriceInput);
-
-        departsFromInput.addEventListener('change', handleBusLocationChange);
-        arrivesAtInput.addEventListener('change', handleBusLocationChange);
-        departsFromInput.addEventListener('blur', handleBusLocationChange);
-        arrivesAtInput.addEventListener('blur', handleBusLocationChange);
-        priceInput.addEventListener('input', () => {
-            priceInput.dataset.autofilled = 'false';
-            priceInput.classList.remove('bg-amber-50', 'border-amber-300');
-        });
-
-        bulkDepartsInput.addEventListener('change', handleBulkLocationChange);
-        bulkArrivesInput.addEventListener('change', handleBulkLocationChange);
-        bulkDepartsInput.addEventListener('blur', handleBulkLocationChange);
-        bulkArrivesInput.addEventListener('blur', handleBulkLocationChange);
-        bulkPriceInput.addEventListener('input', () => {
-            bulkPriceInput.dataset.autofilled = 'false';
-            bulkPriceInput.classList.remove('bg-amber-50', 'border-amber-300');
-        });
-
-        refreshMatrixButton.addEventListener('click', (event) => {
-            event.preventDefault();
-            locationMessage.textContent = '';
-            fareMessage.textContent = '';
-            loadPriceMatrix();
-        });
-
-        locationForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            locationMessage.textContent = '';
-            const name = locationNameInput.value.trim();
-            if (!name) return;
-            try {
-                const response = await fetchWithAuth('/api/price-matrix/locations', {
-                    method: 'POST',
-                    body: JSON.stringify({ name })
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'Unable to save destination');
-                locationNameInput.value = '';
-                locationMessage.textContent = `Added ${data.name || name}.`;
-                locationMessage.className = 'text-sm text-green-600';
-                await loadPriceMatrix();
-            } catch (error) {
-                locationMessage.textContent = error.message;
-                locationMessage.className = 'text-sm text-red-600';
-            }
-        });
-
-        fareForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            fareMessage.textContent = '';
-            const origin = fareOriginInput.value.trim();
-            const destination = fareDestinationInput.value.trim();
-            const priceValue = farePriceInput.value.trim();
-            if (!origin || !destination || !priceValue) {
-                fareMessage.textContent = 'Please provide origin, destination, and price.';
-                fareMessage.className = 'text-sm text-red-600';
-                return;
-            }
-            try {
-                const response = await fetchWithAuth('/api/price-matrix/fares', {
-                    method: 'POST',
-                    body: JSON.stringify({ origin, destination, price: priceValue })
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'Unable to save fare');
-                fareMessage.textContent = `Saved fare ${data.origin} → ${data.destination}.`;
-                fareMessage.className = 'text-sm text-green-600';
-                fareForm.reset();
-                await loadPriceMatrix();
-            } catch (error) {
-                fareMessage.textContent = error.message;
-                fareMessage.className = 'text-sm text-red-600';
-            }
-        });
 
         renderAvailabilityCheckboxes(availabilityContainer);
         renderAvailabilityCheckboxes(bulkAvailabilityContainer);

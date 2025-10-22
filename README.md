@@ -22,20 +22,10 @@ Copy `.env.example` to `.env` and adjust the values as required:
 PORT=3000
 JWT_SECRET=super-secret-string
 ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=password
-LEGACY_ADMIN_USERNAME=admin
-LEGACY_ADMIN_PASSWORD=password
-TIMEKEEPER_EMAIL=timekeeper@example.com
-TIMEKEEPER_PASSWORD=password
-TIMEKEEPER_DEPOT=Makumbura
-LEGACY_TIMEKEEPER_USERNAME=timekeeper
+ADMIN_PASSWORD=super-secure-password
 ```
 
-The secret values are used to provision the first admin, a default timekeeper, and to sign authentication tokens. When the `users` table is empty the server will create the admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD` and a timekeeper at `TIMEKEEPER_EMAIL`.
-
-> **Quick start credentials:**
-> * Admin – `admin@example.com` / `password` (username `admin` also works)
-> * Timekeeper – `timekeeper@example.com` / `password` (username `timekeeper`)
+The secret values are used to provision the first admin and to sign authentication tokens. When the `users` table is empty the server will create the admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
 
 ## Installation
 
@@ -95,9 +85,7 @@ curl "http://localhost:3000/api/search?from=makumbura&to=galle&date=2024-10-01"
 To authenticate:
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:3000/api/login \
-  -H 'Content-Type: application/json' \
-  -d '{"identifier":"admin@example.com","password":"password"}' | jq -r '.token')
+TOKEN=$(curl -s -X POST http://localhost:3000/api/login   -H 'Content-Type: application/json'   -d '{"email":"admin@example.com","password":"super-secure-password"}' | jq -r '.token')
 
 curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/buses
 ```
@@ -110,7 +98,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/buses
 
 ## Troubleshooting
 
-* **Cannot login:** try the default credentials (`admin@example.com` / `password` or `timekeeper@example.com` / `password`). Delete `timetable.db` to trigger the seed using the values from your `.env` file if you have customised them.
+* **Cannot login:** ensure the database contains an admin user. Delete `timetable.db` to trigger the seed using `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
 * **Search returns nothing:** confirm you imported data (`buses.json`) and that the `availability` array contains the day you are querying.
 * **403/401 errors in admin UI:** tokens expire after one hour. Log out and sign back in to obtain a fresh token.
 
