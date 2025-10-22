@@ -1,23 +1,107 @@
-# slbustimetable
-Full-Stack Bus Timetable App: Setup & Deployment GuideThis guide will walk you through setting up your project locally, pushing it to GitHub, and deploying it to the web.Project StructureTo keep things organized, create a main folder (e.g., bus-app) and place your files inside it like this:bus-app/
-├── public/
-│   ├── index.html       (Customer Interface - Home Page)
-│   └── admin.html       (Admin Panel)
-├── server.js            (Backend Server)
-└── package.json         (Will be created later)
-Action: Create this folder structure and move your files into the correct locations.Step 1: Local DevelopmentFirst, let's get the application running on your computer.1. Set up the Project:Open your terminal or command prompt.Navigate into your bus-app folder: cd path/to/bus-appInitialize a Node.js project:npm init -y
-This creates the package.json file.Install the necessary packages (Express and CORS):npm install express cors
-2. Run the Application:Start your server from the bus-app folder:node server.js
-You should see Server is running on http://localhost:3000. Your backend is live!3. Test the Application in Your Browser:Customer Interface: Open your web browser and go to http://localhost:3000. You will see the main search page.Admin Panel: Go to http://localhost:3000/admin.html. You can now log in using admin and password to manage your bus routes.Step 2: Upload to GitHubVersion control is essential. Let's get your project on GitHub.1. Initialize Git:In your terminal (still in the bus-app folder), run:git init
-2. Create a .gitignore file:This file tells Git to ignore certain files/folders. Create a file named .gitignore in the bus-app folder and add this line to it:node_modules
-3. Commit Your Files:Add all your files to be tracked by Git:git add .
-Make your first commit:git commit -m "Initial commit of bus timetable application"
-4. Push to GitHub:Go to GitHub and create a new, empty repository (e.g., bus-timetable-app).GitHub will give you commands to connect your local repository to the remote one. They will look like this:git remote add origin [https://github.com/YOUR_USERNAME/bus-timetable-app.git](https://github.com/YOUR_USERNAME/bus-timetable-app.git)
-git branch -M main
-git push -u origin main
-Run those commands in your terminal. Your code is now on GitHub!Step 3: DeploymentWe will use two services: Render for the backend (since it can run a Node.js server) and Netlify for the frontend (which is perfect for static HTML files).Part A: Deploy the Backend to RenderSign up: Create a free account on Render.com using your GitHub account.New Web Service: On the dashboard, click "New +" and select "Web Service".Connect Repo: Choose your bus-timetable-app repository from the list.Configure Settings:Name: Give your service a unique name (e.g., bus-api-service).Root Directory: Leave this blank.Environment: Select Node.Build Command: npm installStart Command: node server.jsCreate Service: Click "Create Web Service". Render will automatically build and deploy your backend.Get Your URL: Once it's live, Render will give you a public URL, like https://bus-api-service.onrender.com. Copy this URL.Part B: Deploy the Frontend to NetlifySign up: Create a free account on Netlify.com using your GitHub account.New Site: From your dashboard, click "Add new site" and choose "Import an existing project".Connect to GitHub: Select GitHub and authorize Netlify to access your repositories.Choose Repo: Select your bus-timetable-app repository.Configure Settings:Base directory: Leave blank.Publish directory: public (This is VERY important - it tells Netlify to only publish the files inside your public folder).Build command: Leave this blank.Deploy: Click "Deploy site". Netlify will deploy your index.html and admin.html files.Step 4: Connect Everything!Your backend and frontend are live, but they don't know about each other yet.Open your admin.html file (locally, in your code editor).Find this line at the top of the <script> tag:const API_URL = 'http://localhost:3000/api';
-Change the URL to your live Render backend URL:const API_URL = '[https://bus-api-service.onrender.com/api](https://bus-api-service.onrender.com/api)'; // Use your Render URL here
-Save the file.Commit and Push the Change: In your terminal, run:git add public/admin.html
-git commit -m "Update API URL for production"
-git push
-Because your Netlify site is connected to your GitHub repo, Netlify will automatically see this new push and redeploy your site with the updated URL.Congratulations! Your full-stack application is now live on the internet. You can manage buses from your Netlify admin URL, and the changes will be saved to your live Render backend.
+# SL Bus Timetable
+
+A Node.js + SQLite application that serves a unified API for the Sri Lanka expressway bus timetable and three HTML front-ends:
+
+* `index.html` – public journey search experience powered entirely by the REST API.
+* `admin.html` – secure admin console for CRUD, ordering and bulk creation of buses.
+* `timekeeper.html` – depot-focused dashboard for live status updates and unscheduled runs.
+* `user_management.html` – admin-only provisioning UI for timekeepers and additional admins.
+
+## Prerequisites
+
+* Node.js 18+
+* npm
+
+The repository ships with a `timetable.db` SQLite database and a fallback `buses.json` seed. The server will create missing tables/columns automatically.
+
+## Configuration
+
+Copy `.env.example` to `.env` and adjust the values as required:
+
+```env
+PORT=3000
+JWT_SECRET=super-secret-string
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=super-secure-password
+```
+
+The secret values are used to provision the first admin and to sign authentication tokens. When the `users` table is empty the server will create the admin account using `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
+
+## Installation
+
+```bash
+npm install
+```
+
+> If you are running in an offline or restricted environment you can skip this step because the repository already contains a `node_modules` directory with the required packages (`express`, `cors`, and `better-sqlite3`).
+
+## Running the server
+
+```bash
+npm start
+```
+
+The server listens on `http://localhost:3000` by default and exposes:
+
+* `/api/login` – obtain a short-lived token using email/password.
+* `/api/search` – public search endpoint consumed by `index.html`.
+* `/api/buses` and related endpoints – protected admin CRUD.
+* `/api/timekeeper/...` – endpoints for depot dashboards.
+* `/api/users` – admin-only provisioning API.
+
+Static files are served from the repository root, so visiting `/`, `/admin.html`, `/timekeeper.html` or `/user_management.html` in the browser will load the respective UI.
+
+## Authentication flow
+
+1. Admins and timekeepers sign in via `/api/login`.
+2. The backend issues a signed JWT-like token using the configured `JWT_SECRET`.
+3. Subsequent requests include `Authorization: Bearer <token>` headers.
+4. `admin.html`, `user_management.html`, and `timekeeper.html` store the token in `localStorage` and automatically refresh their data.
+
+Tokens expire after one hour; the front-ends handle 401 responses by redirecting back to the login screen.
+
+## Database schema
+
+The server auto-migrates the following tables:
+
+* `buses`
+  * Core timetable (route/operator/origin/destination/times)
+  * JSON columns for `stops` and `availability`
+  * Status tracking (`Scheduled`, `Departed`, `Arrived`, `Delayed`, `Cancelled`)
+  * Sort order plus audit timestamps
+* `users`
+  * Email + role (`admin` or `timekeeper`)
+  * Optional depot assignment
+  * Passwords hashed via `crypto.scrypt`
+
+## Testing the API
+
+With the server running you can quickly verify endpoints using `curl`:
+
+```bash
+curl "http://localhost:3000/api/search?from=makumbura&to=galle&date=2024-10-01"
+```
+
+To authenticate:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3000/api/login   -H 'Content-Type: application/json'   -d '{"email":"admin@example.com","password":"super-secure-password"}' | jq -r '.token')
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/buses
+```
+
+## Deployment notes
+
+* Treat `.env` secrets carefully – inject them during deployment instead of committing real values.
+* The static HTML files expect the API to be hosted on the same origin. If you deploy the backend separately, either proxy the API or adjust the fetch calls to point at the deployed origin.
+* Back up `timetable.db` regularly; the admin tools modify it directly.
+
+## Troubleshooting
+
+* **Cannot login:** ensure the database contains an admin user. Delete `timetable.db` to trigger the seed using `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
+* **Search returns nothing:** confirm you imported data (`buses.json`) and that the `availability` array contains the day you are querying.
+* **403/401 errors in admin UI:** tokens expire after one hour. Log out and sign back in to obtain a fresh token.
+
+## License
+
+MIT
