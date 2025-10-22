@@ -121,7 +121,6 @@ app.use(express.static(__dirname));
 
 // --- DATABASE SETUP ---
 const db = new Database(DB_SOURCE);
-db.pragma('foreign_keys = ON');
 console.log('Connected to the SQLite database.');
 
 const ensureColumn = (table, column, definition, afterAdd) => {
@@ -170,62 +169,6 @@ try {
     db.exec("UPDATE buses SET updatedAt = datetime('now') WHERE updatedAt IS NULL OR updatedAt = ''");
   });
 
-  db.exec(`CREATE TABLE IF NOT EXISTS locations (
-    id INTEGER PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
-    createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now'))
-  )`);
-
-  db.exec(`CREATE TABLE IF NOT EXISTS fares (
-    id INTEGER PRIMARY KEY,
-    originId INTEGER NOT NULL,
-    destinationId INTEGER NOT NULL,
-    price TEXT NOT NULL,
-    createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now')),
-    UNIQUE(originId, destinationId),
-    FOREIGN KEY(originId) REFERENCES locations(id) ON DELETE CASCADE,
-    FOREIGN KEY(destinationId) REFERENCES locations(id) ON DELETE CASCADE
-  )`);
-
-  db.exec(`CREATE TABLE IF NOT EXISTS bus_status_overrides (
-    id INTEGER PRIMARY KEY,
-    busId INTEGER NOT NULL,
-    date TEXT NOT NULL,
-    status TEXT NOT NULL,
-    createdBy INTEGER,
-    createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now')),
-    UNIQUE(busId, date),
-    FOREIGN KEY(busId) REFERENCES buses(id) ON DELETE CASCADE
-  )`);
-
-  db.exec(`CREATE TABLE IF NOT EXISTS daily_buses (
-    id INTEGER PRIMARY KEY,
-    date TEXT NOT NULL,
-    route TEXT NOT NULL,
-    operator TEXT NOT NULL,
-    departsFrom TEXT NOT NULL,
-    arrivesAt TEXT NOT NULL,
-    departureTime TEXT NOT NULL,
-    arrivalTime TEXT,
-    price TEXT,
-    stops TEXT DEFAULT '[]',
-    availability TEXT DEFAULT '[]',
-    expresswayEntrance TEXT,
-    expresswayExit TEXT,
-    status TEXT DEFAULT 'Scheduled',
-    createdBy INTEGER,
-    createdAt TEXT DEFAULT (datetime('now')),
-    updatedAt TEXT DEFAULT (datetime('now'))
-  )`);
-
-  ensureColumn('daily_buses', 'availability', "TEXT DEFAULT '[]'");
-  ensureColumn('daily_buses', 'status', "TEXT DEFAULT 'Scheduled'", () => {
-    db.exec("UPDATE daily_buses SET status = 'Scheduled' WHERE status IS NULL OR status = ''");
-  });
-
   db.exec(`CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
@@ -270,32 +213,6 @@ try {
     console.log(`Successfully imported ${busesToImport.length} buses.`);
   }
 
-  const locationCountStmt = db.prepare('SELECT COUNT(*) as count FROM locations');
-  const { count: locationCount } = locationCountStmt.get();
-  if (locationCount === 0) {
-    const rows = db.prepare('SELECT departsFrom, arrivesAt, expresswayEntrance, expresswayExit FROM buses').all();
-    const uniqueLocations = new Set();
-    rows.forEach((row) => {
-      [row.departsFrom, row.arrivesAt, row.expresswayEntrance, row.expresswayExit].forEach((value) => {
-        if (value && value.trim()) {
-          uniqueLocations.add(value.trim());
-        }
-      });
-    });
-    if (uniqueLocations.size) {
-      const insertLocation = db.prepare(
-        `INSERT INTO locations (name, createdAt, updatedAt) VALUES (@name, @createdAt, @updatedAt)`
-      );
-      const insertLocationTx = db.transaction((names) => {
-        names.forEach((name) => {
-          insertLocation.run({ name, createdAt: nowIso(), updatedAt: nowIso() });
-        });
-      });
-      insertLocationTx(Array.from(uniqueLocations));
-      console.log(`Seeded ${uniqueLocations.size} locations from existing buses.`);
-    }
-  }
-
   const userCountStmt = db.prepare('SELECT COUNT(*) as count FROM users');
   const { count: userCount } = userCountStmt.get();
   if (userCount === 0) {
@@ -323,93 +240,6 @@ const mapBusRow = (row) => ({
   stops: parseJsonColumn(row.stops, '[]'),
   availability: parseJsonColumn(row.availability, '[]'),
 });
-
-const mapDailyBusRow = (row) => ({
-  ...row,
-  stops: parseJsonColumn(row.stops, '[]'),
-  availability: parseJsonColumn(row.availability, '[]'),
-});
-
-const normalizeDate = (value) => {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-};
-
-const ensureLocation = (name) => {
-  if (!name || typeof name !== 'string') return null;
-  const trimmed = name.trim();
-  if (!trimmed) return null;
-  const insert = db.prepare(
-    `INSERT INTO locations (name, createdAt, updatedAt)
-     VALUES (@name, @createdAt, @updatedAt)
-     ON CONFLICT(name) DO UPDATE SET updatedAt = excluded.updatedAt`
-  );
-  insert.run({ name: trimmed, createdAt: nowIso(), updatedAt: nowIso() });
-  const row = db.prepare('SELECT * FROM locations WHERE name = ?').get(trimmed);
-  return row || null;
-};
-
-const getFareForLocations = db.prepare(
-  `SELECT fares.price FROM fares
-   INNER JOIN locations origin ON origin.id = fares.originId
-   INNER JOIN locations destination ON destination.id = fares.destinationId
-   WHERE LOWER(origin.name) = LOWER(?) AND LOWER(destination.name) = LOWER(?)`
-);
-
-const loadScheduleForDate = (depot, dateInput) => {
-  const normalizedDate = normalizeDate(dateInput) || normalizeDate(new Date());
-  const referenceDate = normalizedDate ? new Date(`${normalizedDate}T12:00:00`) : new Date();
-  const dayOfWeek = referenceDate.toLocaleString('en-US', { weekday: 'long' });
-
-  const busesStmt = db.prepare(
-    `SELECT * FROM buses WHERE LOWER(departsFrom) = LOWER(?) ORDER BY departureTime ASC`
-  );
-  const allBuses = busesStmt.all(depot).map(mapBusRow);
-  const filteredBuses = allBuses.filter(
-    (bus) => !bus.availability.length || bus.availability.includes(dayOfWeek)
-  );
-
-  const overrides = db
-    .prepare('SELECT busId, status FROM bus_status_overrides WHERE date = ?')
-    .all(normalizedDate || '')
-    .reduce((acc, row) => {
-      acc.set(row.busId, row.status);
-      return acc;
-    }, new Map());
-
-  const enrichedBuses = filteredBuses.map((bus) => ({
-    ...bus,
-    status: overrides.get(bus.id) || bus.status,
-    isDaily: false,
-  }));
-
-  const dailyStmt = db.prepare(
-    `SELECT * FROM daily_buses WHERE date = ? AND LOWER(departsFrom) = LOWER(?) ORDER BY departureTime ASC`
-  );
-  const dailyBuses = normalizedDate
-    ? dailyStmt.all(normalizedDate, depot).map((row) => ({ ...mapDailyBusRow(row), isDaily: true }))
-    : [];
-
-  const combined = [...enrichedBuses, ...dailyBuses].sort((a, b) => {
-    if (a.departureTime === b.departureTime) {
-      if (a.isDaily === b.isDaily) return a.arrivesAt.localeCompare(b.arrivesAt);
-      return a.isDaily ? 1 : -1;
-    }
-    return a.departureTime.localeCompare(b.departureTime);
-  });
-
-  return {
-    depot,
-    date: normalizedDate,
-    day: dayOfWeek,
-    buses: combined,
-  };
-};
 
 const validateBusPayload = (payload) => {
   const errors = [];
@@ -484,23 +314,11 @@ app.get('/api/me', authenticate, (req, res) => {
 // --- PUBLIC API ROUTES ---
 app.get('/api/locations', (req, res) => {
   try {
+    const rows = db.prepare('SELECT departsFrom, arrivesAt, expresswayEntrance, expresswayExit FROM buses').all();
     const locations = new Set();
-    const locationRows = db.prepare('SELECT name FROM locations').all();
-    locationRows.forEach(({ name }) => {
-      if (name && name.trim()) locations.add(name.trim());
-    });
-    const busRows = db.prepare('SELECT departsFrom, arrivesAt, expresswayEntrance, expresswayExit FROM buses').all();
-    busRows.forEach((row) => {
+    rows.forEach((row) => {
       [row.departsFrom, row.arrivesAt, row.expresswayEntrance, row.expresswayExit].forEach((value) => {
-        if (value && value.trim()) {
-          locations.add(value.trim());
-        }
-      });
-    });
-    const dailyRows = db.prepare('SELECT departsFrom, arrivesAt FROM daily_buses').all();
-    dailyRows.forEach((row) => {
-      [row.departsFrom, row.arrivesAt].forEach((value) => {
-        if (value && value.trim()) {
+        if (value) {
           locations.add(value.trim());
         }
       });
@@ -523,175 +341,21 @@ app.get('/api/search', (req, res) => {
         ORDER BY departureTime ASC`
     );
     const rows = stmt.all(from, from, to, to).map(mapBusRow);
-    const normalizedDate = normalizeDate(date);
-    const searchDate = normalizedDate ? new Date(`${normalizedDate}T12:00:00`) : new Date(date);
+    const searchDate = new Date(date);
     searchDate.setHours(12);
     const dayOfWeek = searchDate.toLocaleString('en-US', { weekday: 'long' });
     const filtered = rows.filter((bus) => !bus.availability.length || bus.availability.includes(dayOfWeek));
-
-    let overrides = new Map();
-    if (normalizedDate) {
-      overrides = db
-        .prepare('SELECT busId, status FROM bus_status_overrides WHERE date = ?')
-        .all(normalizedDate)
-        .reduce((acc, row) => {
-          acc.set(row.busId, row.status);
-          return acc;
-        }, new Map());
-    }
-
-    const enriched = filtered.map((bus) => ({
-      ...bus,
-      status: overrides.get(bus.id) || bus.status,
-      isDaily: false,
-    }));
-
-    let dailyResults = [];
-    if (normalizedDate) {
-      const dailyStmt = db.prepare(
-        `SELECT * FROM daily_buses WHERE date = ?
-          AND (LOWER(departsFrom) = LOWER(?) OR LOWER(expresswayEntrance) = LOWER(?))
-          AND (LOWER(arrivesAt) = LOWER(?) OR LOWER(expresswayExit) = LOWER(?))
-          ORDER BY departureTime ASC`
-      );
-      dailyResults = dailyStmt
-        .all(normalizedDate, from, from, to, to)
-        .map((row) => ({ ...mapDailyBusRow(row), isDaily: true }));
-    }
-
-    const combined = [...enriched, ...dailyResults].sort((a, b) => {
-      if (a.departureTime === b.departureTime) {
-        if (a.isDaily === b.isDaily) return a.arrivesAt.localeCompare(b.arrivesAt);
-        return a.isDaily ? 1 : -1;
-      }
-      return a.departureTime.localeCompare(b.departureTime);
-    });
     res.json({
-      buses: combined,
+      buses: filtered,
       meta: {
         from,
         to,
         dayOfWeek,
-        total: combined.length,
+        total: filtered.length,
       },
     });
   } catch (err) {
     res.status(500).json({ message: 'Search failed.' });
-  }
-});
-
-// --- PRICE MATRIX ROUTES ---
-app.get('/api/price-matrix', authenticate, requireRole('admin'), (req, res) => {
-  try {
-    const locations = db.prepare('SELECT id, name FROM locations ORDER BY name ASC').all();
-    const fares = db
-      .prepare(
-        `SELECT fares.id, origin.name AS origin, destination.name AS destination, fares.price, fares.updatedAt
-         FROM fares
-         INNER JOIN locations origin ON origin.id = fares.originId
-         INNER JOIN locations destination ON destination.id = fares.destinationId
-         ORDER BY origin.name ASC, destination.name ASC`
-      )
-      .all();
-    res.json({ locations, fares });
-  } catch (err) {
-    res.status(500).json({ message: 'Unable to load price matrix.' });
-  }
-});
-
-app.get('/api/price-matrix/suggest', authenticate, requireRole('admin', 'timekeeper'), (req, res) => {
-  const origin = (req.query.origin || '').trim();
-  const destination = (req.query.destination || '').trim();
-  if (!origin || !destination) {
-    return res.status(400).json({ message: 'Origin and destination are required.' });
-  }
-  try {
-    const suggestion = getFareForLocations.get(origin, destination);
-    if (!suggestion) {
-      return res.status(404).json({ message: 'No fare found.' });
-    }
-    res.json({ price: suggestion.price });
-  } catch (err) {
-    res.status(500).json({ message: 'Unable to load fare suggestion.' });
-  }
-});
-
-app.post('/api/price-matrix/locations', authenticate, requireRole('admin'), (req, res) => {
-  const { name } = req.body || {};
-  if (!name || !name.trim()) {
-    return res.status(400).json({ message: 'Location name is required.' });
-  }
-  try {
-    const location = ensureLocation(name);
-    res.status(201).json(location);
-  } catch (err) {
-    res.status(500).json({ message: 'Unable to save location.' });
-  }
-});
-
-app.put('/api/price-matrix/locations/:id', authenticate, requireRole('admin'), (req, res) => {
-  const { name } = req.body || {};
-  const id = Number(req.params.id);
-  if (!id) {
-    return res.status(400).json({ message: 'Valid location id is required.' });
-  }
-  if (!name || !name.trim()) {
-    return res.status(400).json({ message: 'Location name is required.' });
-  }
-  try {
-    const stmt = db.prepare('UPDATE locations SET name = ?, updatedAt = ? WHERE id = ?');
-    const info = stmt.run(name.trim(), nowIso(), id);
-    if (!info.changes) {
-      return res.status(404).json({ message: 'Location not found.' });
-    }
-    res.json({ id, name: name.trim() });
-  } catch (err) {
-    res.status(500).json({ message: 'Unable to update location.' });
-  }
-});
-
-app.delete('/api/price-matrix/locations/:id', authenticate, requireRole('admin'), (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) {
-    return res.status(400).json({ message: 'Valid location id is required.' });
-  }
-  try {
-    const stmt = db.prepare('DELETE FROM locations WHERE id = ?');
-    stmt.run(id);
-    res.status(204).send();
-  } catch (err) {
-    res.status(500).json({ message: 'Unable to delete location.' });
-  }
-});
-
-app.post('/api/price-matrix/fares', authenticate, requireRole('admin'), (req, res) => {
-  const { origin, destination, price } = req.body || {};
-  if (!origin || !destination || origin.trim().toLowerCase() === destination.trim().toLowerCase()) {
-    return res.status(400).json({ message: 'Distinct origin and destination are required.' });
-  }
-  if (!price || !price.toString().trim()) {
-    return res.status(400).json({ message: 'Price is required.' });
-  }
-  try {
-    const originLocation = ensureLocation(origin);
-    const destinationLocation = ensureLocation(destination);
-    const insert = db.prepare(
-      `INSERT INTO fares (originId, destinationId, price, createdAt, updatedAt)
-       VALUES (@originId, @destinationId, @price, @createdAt, @updatedAt)
-       ON CONFLICT(originId, destinationId) DO UPDATE SET price = excluded.price, updatedAt = excluded.updatedAt`
-    );
-    const payload = {
-      originId: originLocation.id,
-      destinationId: destinationLocation.id,
-      price: price.toString().trim(),
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    };
-    insert.run(payload);
-    insert.run({ ...payload, originId: destinationLocation.id, destinationId: originLocation.id });
-    res.status(201).json({ origin: originLocation.name, destination: destinationLocation.name, price: payload.price });
-  } catch (err) {
-    res.status(500).json({ message: 'Unable to save fare.' });
   }
 });
 
@@ -715,10 +379,6 @@ app.post('/api/buses', authenticate, requireRole('admin'), (req, res) => {
     const orderStmt = db.prepare('SELECT IFNULL(MAX(sortOrder), -1) as maxOrder FROM buses');
     const { maxOrder } = orderStmt.get();
     const nextOrder = maxOrder + 1;
-    ensureLocation(payload.departsFrom);
-    ensureLocation(payload.arrivesAt);
-    const fareSuggestion = getFareForLocations.get(payload.departsFrom, payload.arrivesAt);
-    const resolvedPrice = payload.price && payload.price.trim() ? payload.price.trim() : fareSuggestion?.price || null;
     const stmt = db.prepare(
       `INSERT INTO buses (route, operator, departsFrom, arrivesAt, departureTime, arrivalTime, price, stops, availability, expresswayEntrance, expresswayExit, status, sortOrder, createdAt, updatedAt)
        VALUES (@route, @operator, @departsFrom, @arrivesAt, @departureTime, @arrivalTime, @price, @stops, @availability, @expresswayEntrance, @expresswayExit, 'Scheduled', @sortOrder, @createdAt, @updatedAt)`
@@ -730,7 +390,7 @@ app.post('/api/buses', authenticate, requireRole('admin'), (req, res) => {
       arrivesAt: payload.arrivesAt.trim(),
       departureTime: payload.departureTime.trim(),
       arrivalTime: payload.arrivalTime ? payload.arrivalTime.trim() : null,
-      price: resolvedPrice,
+      price: payload.price ? payload.price.trim() : null,
       stops: JSON.stringify(payload.stops || []),
       availability: JSON.stringify(payload.availability || []),
       expresswayEntrance: payload.expresswayEntrance ? payload.expresswayEntrance.trim() : null,
@@ -753,10 +413,6 @@ app.put('/api/buses/:id', authenticate, requireRole('admin'), (req, res) => {
     return res.status(400).json({ message: 'Validation error', errors });
   }
   try {
-    ensureLocation(payload.departsFrom);
-    ensureLocation(payload.arrivesAt);
-    const fareSuggestion = getFareForLocations.get(payload.departsFrom, payload.arrivesAt);
-    const resolvedPrice = payload.price && payload.price.trim() ? payload.price.trim() : fareSuggestion?.price || null;
     const stmt = db.prepare(
       `UPDATE buses SET route=@route, operator=@operator, departsFrom=@departsFrom, arrivesAt=@arrivesAt,
         departureTime=@departureTime, arrivalTime=@arrivalTime, price=@price, stops=@stops, availability=@availability,
@@ -771,7 +427,7 @@ app.put('/api/buses/:id', authenticate, requireRole('admin'), (req, res) => {
       arrivesAt: payload.arrivesAt.trim(),
       departureTime: payload.departureTime.trim(),
       arrivalTime: payload.arrivalTime ? payload.arrivalTime.trim() : null,
-      price: resolvedPrice,
+      price: payload.price ? payload.price.trim() : null,
       stops: JSON.stringify(payload.stops || []),
       availability: JSON.stringify(payload.availability || []),
       expresswayEntrance: payload.expresswayEntrance ? payload.expresswayEntrance.trim() : null,
@@ -821,95 +477,38 @@ app.post('/api/buses/order', authenticate, requireRole('admin'), (req, res) => {
 });
 
 app.patch('/api/buses/:id/status', authenticate, requireRole('admin', 'timekeeper'), (req, res) => {
-  const { status, date } = req.body || {};
-  const allowedStatuses = ['Scheduled', 'Departed', 'Arrived', 'Delayed', 'Cancelled'];
-  if (!allowedStatuses.includes(status)) {
-    return res.status(400).json({ message: 'Invalid status' });
-  }
-  const normalizedDate = date ? normalizeDate(date) : null;
-  const now = nowIso();
-
-  if (req.user.role === 'timekeeper' || normalizedDate) {
-    if (!normalizedDate) {
-      return res.status(400).json({ message: 'A valid date is required for daily status updates.' });
-    }
-    try {
-      if (status === 'Scheduled') {
-        const removeStmt = db.prepare('DELETE FROM bus_status_overrides WHERE busId = ? AND date = ?');
-        removeStmt.run(req.params.id, normalizedDate);
-        return res.json({ message: 'Status reset to scheduled for the day.', date: normalizedDate, status });
-      }
-      const stmt = db.prepare(
-        `INSERT INTO bus_status_overrides (busId, date, status, createdBy, createdAt, updatedAt)
-         VALUES (@busId, @date, @status, @createdBy, @createdAt, @updatedAt)
-         ON CONFLICT(busId, date) DO UPDATE SET status = excluded.status, updatedAt = excluded.updatedAt, createdBy = excluded.createdBy`
-      );
-      stmt.run({
-        busId: req.params.id,
-        date: normalizedDate,
-        status,
-        createdBy: req.user.id,
-        createdAt: now,
-        updatedAt: now,
-      });
-      return res.json({ message: 'Daily status saved.', date: normalizedDate, status });
-    } catch (err) {
-      return res.status(500).json({ message: 'Unable to update daily status.' });
-    }
-  }
-
-  try {
-    const stmt = db.prepare('UPDATE buses SET status = ?, updatedAt = ? WHERE id = ?');
-    const info = stmt.run(status, now, req.params.id);
-    if (!info.changes) {
-      return res.status(404).json({ message: 'Bus not found' });
-    }
-    res.json({ message: 'Status updated.' });
-  } catch (err) {
-    res.status(500).json({ message: 'Unable to update status.' });
-  }
-});
-
-app.patch('/api/timekeeper/daily-buses/:id/status', authenticate, requireRole('admin', 'timekeeper'), (req, res) => {
   const { status } = req.body || {};
   const allowedStatuses = ['Scheduled', 'Departed', 'Arrived', 'Delayed', 'Cancelled'];
   if (!allowedStatuses.includes(status)) {
     return res.status(400).json({ message: 'Invalid status' });
   }
   try {
-    const stmt = db.prepare('UPDATE daily_buses SET status = ?, updatedAt = ? WHERE id = ?');
+    const stmt = db.prepare('UPDATE buses SET status = ?, updatedAt = ? WHERE id = ?');
     const info = stmt.run(status, nowIso(), req.params.id);
     if (!info.changes) {
       return res.status(404).json({ message: 'Bus not found' });
     }
-    res.json({ message: 'Status updated.' });
+    res.json({ message: 'Status updated' });
   } catch (err) {
     res.status(500).json({ message: 'Unable to update status.' });
   }
 });
 
 // --- TIMEKEEPER ROUTES ---
-app.get('/api/timekeeper/schedule', authenticate, requireRole('admin', 'timekeeper'), (req, res) => {
-  const depot = (req.query.depot || req.user.depot || '').trim();
-  if (!depot) {
-    return res.status(400).json({ message: 'Depot is required' });
-  }
-  try {
-    const schedule = loadScheduleForDate(depot, req.query.date);
-    res.json(schedule);
-  } catch (err) {
-    res.status(500).json({ message: 'Unable to load schedule.' });
-  }
-});
-
 app.get('/api/timekeeper/schedule/today', authenticate, requireRole('admin', 'timekeeper'), (req, res) => {
-  const depot = (req.query.depot || req.user.depot || '').trim();
+  const depot = req.query.depot || req.user.depot;
   if (!depot) {
     return res.status(400).json({ message: 'Depot is required' });
   }
+  const today = new Date().toLocaleString('en-US', { weekday: 'long' });
   try {
-    const schedule = loadScheduleForDate(depot, new Date());
-    res.json(schedule);
+    const stmt = db.prepare(
+      `SELECT * FROM buses WHERE LOWER(departsFrom) = LOWER(?) AND (availability = '[]' OR availability LIKE '%' || ? || '%')
+       ORDER BY departureTime ASC`
+    );
+    const rows = stmt.all(depot, today).map(mapBusRow);
+    const filtered = rows.filter((bus) => !bus.availability.length || bus.availability.includes(today));
+    res.json({ depot, day: today, buses: filtered });
   } catch (err) {
     res.status(500).json({ message: 'Unable to load schedule.' });
   }
@@ -917,14 +516,11 @@ app.get('/api/timekeeper/schedule/today', authenticate, requireRole('admin', 'ti
 
 app.post('/api/timekeeper/buses', authenticate, requireRole('admin', 'timekeeper'), (req, res) => {
   const payload = req.body || {};
-  const depot = payload.departsFrom?.trim() || req.user.depot;
-  const persist = Boolean(payload.persist);
+  const depot = req.user.depot || payload.departsFrom;
   if (!depot) {
     return res.status(400).json({ message: 'Depot is required to add a bus.' });
   }
-
-  const normalizedDate = normalizeDate(payload.date) || normalizeDate(new Date());
-  const basePayload = {
+  const minimalPayload = {
     route: payload.route,
     operator: payload.operator,
     departsFrom: depot,
@@ -937,50 +533,10 @@ app.post('/api/timekeeper/buses', authenticate, requireRole('admin', 'timekeeper
     expresswayEntrance: payload.expresswayEntrance || null,
     expresswayExit: payload.expresswayExit || null,
   };
-  const errors = validateBusPayload(basePayload);
+  const errors = validateBusPayload(minimalPayload);
   if (errors.length) {
     return res.status(400).json({ message: 'Validation error', errors });
   }
-
-  ensureLocation(basePayload.departsFrom);
-  ensureLocation(basePayload.arrivesAt);
-  const fareSuggestion = getFareForLocations.get(basePayload.departsFrom, basePayload.arrivesAt);
-  const resolvedPrice = basePayload.price && basePayload.price.trim() ? basePayload.price.trim() : fareSuggestion?.price || null;
-
-  if (!persist) {
-    if (!normalizedDate) {
-      return res.status(400).json({ message: 'A valid date is required for single-day buses.' });
-    }
-    try {
-      const stmt = db.prepare(
-        `INSERT INTO daily_buses (date, route, operator, departsFrom, arrivesAt, departureTime, arrivalTime, price, stops, availability, expresswayEntrance, expresswayExit, status, createdBy, createdAt, updatedAt)
-         VALUES (@date, @route, @operator, @departsFrom, @arrivesAt, @departureTime, @arrivalTime, @price, @stops, @availability, @expresswayEntrance, @expresswayExit, 'Scheduled', @createdBy, @createdAt, @updatedAt)`
-      );
-      const result = stmt.run({
-        date: normalizedDate,
-        route: basePayload.route.trim(),
-        operator: basePayload.operator.trim(),
-        departsFrom: depot.trim(),
-        arrivesAt: basePayload.arrivesAt.trim(),
-        departureTime: basePayload.departureTime.trim(),
-        arrivalTime: basePayload.arrivalTime ? basePayload.arrivalTime.trim() : null,
-        price: resolvedPrice,
-        stops: JSON.stringify(basePayload.stops || []),
-        availability: JSON.stringify(basePayload.availability || []),
-        expresswayEntrance: basePayload.expresswayEntrance ? basePayload.expresswayEntrance.trim() : null,
-        expresswayExit: basePayload.expresswayExit ? basePayload.expresswayExit.trim() : null,
-        createdBy: req.user.id,
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
-      });
-      const created = db.prepare('SELECT * FROM daily_buses WHERE id = ?').get(result.lastInsertRowid);
-      res.status(201).json({ ...mapDailyBusRow(created), isDaily: true });
-    } catch (err) {
-      res.status(500).json({ message: 'Unable to create single-day bus.' });
-    }
-    return;
-  }
-
   try {
     const orderStmt = db.prepare('SELECT IFNULL(MAX(sortOrder), -1) as maxOrder FROM buses');
     const { maxOrder } = orderStmt.get();
@@ -990,17 +546,17 @@ app.post('/api/timekeeper/buses', authenticate, requireRole('admin', 'timekeeper
        VALUES (@route, @operator, @departsFrom, @arrivesAt, @departureTime, @arrivalTime, @price, @stops, @availability, @expresswayEntrance, @expresswayExit, 'Scheduled', @sortOrder, @createdAt, @updatedAt)`
     );
     const result = stmt.run({
-      route: basePayload.route.trim(),
-      operator: basePayload.operator.trim(),
+      route: minimalPayload.route.trim(),
+      operator: minimalPayload.operator.trim(),
       departsFrom: depot.trim(),
-      arrivesAt: basePayload.arrivesAt.trim(),
-      departureTime: basePayload.departureTime.trim(),
-      arrivalTime: basePayload.arrivalTime ? basePayload.arrivalTime.trim() : null,
-      price: resolvedPrice,
-      stops: JSON.stringify(basePayload.stops || []),
-      availability: JSON.stringify(basePayload.availability || []),
-      expresswayEntrance: basePayload.expresswayEntrance ? basePayload.expresswayEntrance.trim() : null,
-      expresswayExit: basePayload.expresswayExit ? basePayload.expresswayExit.trim() : null,
+      arrivesAt: minimalPayload.arrivesAt.trim(),
+      departureTime: minimalPayload.departureTime.trim(),
+      arrivalTime: minimalPayload.arrivalTime ? minimalPayload.arrivalTime.trim() : null,
+      price: minimalPayload.price ? minimalPayload.price.trim() : null,
+      stops: JSON.stringify(minimalPayload.stops || []),
+      availability: JSON.stringify(minimalPayload.availability || []),
+      expresswayEntrance: minimalPayload.expresswayEntrance ? minimalPayload.expresswayEntrance.trim() : null,
+      expresswayExit: minimalPayload.expresswayExit ? minimalPayload.expresswayExit.trim() : null,
       sortOrder: nextOrder,
       createdAt: nowIso(),
       updatedAt: nowIso(),

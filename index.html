@@ -10,66 +10,45 @@
         body { font-family: 'Inter', sans-serif; }
         details summary::marker { color: transparent; }
         details summary { list-style: none; }
-        @media (prefers-reduced-motion: reduce) {
-            * {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-                scroll-behavior: auto !important;
-            }
-        }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100">
+<body class="bg-gray-100">
 
-    <div class="relative min-h-screen overflow-hidden">
-        <div class="absolute inset-0 opacity-80 bg-gradient-to-br from-indigo-500/40 via-slate-900 to-slate-950"></div>
-        <div class="absolute -top-32 -right-32 w-96 h-96 bg-indigo-400/30 rounded-full blur-3xl"></div>
-        <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl"></div>
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">Find Your Bus</h1>
+            <p class="text-gray-600 mt-2">Real-time bus schedules across the Expressways Sri Lanka</p>
+        </header>
 
-        <main class="relative z-10 max-w-5xl mx-auto px-4 py-10 md:py-16 space-y-10">
-            <header class="text-center space-y-3">
-                <p class="text-indigo-300 uppercase tracking-[0.3em] text-xs md:text-sm">Sri Lanka Expressway Network</p>
-                <h1 class="text-4xl md:text-5xl font-bold text-white">Plan Your Next Expressway Journey</h1>
-                <p class="text-slate-300 max-w-2xl mx-auto">Real-time schedules unified from the national timetable. Filter by origin, destination, and travel date to see the departures that matter right now.</p>
-            </header>
+        <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+            <form id="search-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div class="md:col-span-1 relative">
+                    <label for="from" class="block text-sm font-medium text-gray-700">From</label>
+                    <input type="text" id="from" placeholder="e.g., Makumbura" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <div id="from-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 hidden"></div>
+                </div>
+                <div class="md:col-span-1 relative">
+                    <label for="to" class="block text-sm font-medium text-gray-700">To</label>
+                    <input type="text" id="to" placeholder="e.g., Galle" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <div id="to-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 hidden"></div>
+                </div>
+                <div class="md:col-span-1">
+                    <label for="date" class="block text-sm font-medium text-gray-700">Date</label>
+                    <input type="date" id="date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div class="md:col-span-1">
+                    <button type="submit" id="search-button" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 font-semibold">Search</button>
+                </div>
+            </form>
+        </div>
 
-            <section class="bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl p-6 md:p-8 space-y-6">
-                <form id="search-form" class="grid gap-4 md:grid-cols-[1fr_auto] items-end">
-                    <div class="grid gap-4 md:grid-cols-3 md:gap-6">
-                        <div class="relative">
-                            <label for="from" class="block text-sm font-medium text-slate-200">From</label>
-                            <input type="text" id="from" placeholder="e.g., Makumbura" class="mt-2 block w-full px-4 py-2.5 bg-white/80 text-slate-900 border border-white/40 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400" autocomplete="off">
-                            <div id="from-suggestions" class="absolute z-20 w-full bg-white text-slate-900 border border-indigo-200 rounded-xl mt-2 shadow-lg hidden"></div>
-                        </div>
-                        <div class="relative">
-                            <label for="to" class="block text-sm font-medium text-slate-200">To</label>
-                            <input type="text" id="to" placeholder="e.g., Galle" class="mt-2 block w-full px-4 py-2.5 bg-white/80 text-slate-900 border border-white/40 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400" autocomplete="off">
-                            <div id="to-suggestions" class="absolute z-20 w-full bg-white text-slate-900 border border-indigo-200 rounded-xl mt-2 shadow-lg hidden"></div>
-                            <button type="button" id="swap-button" class="absolute -right-3 -bottom-3 bg-indigo-500 text-white rounded-full p-2 shadow-lg hover:bg-indigo-600" aria-label="Swap origin and destination">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 7l-3 3m0 0l3 3m-3-3h14m-4 4l3 3m0 0l-3 3m3-3H6" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div>
-                            <label for="date" class="block text-sm font-medium text-slate-200">Travel date</label>
-                            <input type="date" id="date" class="mt-2 block w-full px-4 py-2.5 bg-white/80 text-slate-900 border border-white/40 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400">
-                        </div>
-                    </div>
-                    <button type="submit" id="search-button" class="h-full bg-indigo-500 hover:bg-indigo-600 transition text-white font-semibold px-6 py-3 rounded-2xl shadow-lg shadow-indigo-900/40">Search buses</button>
-                </form>
-                <p class="text-sm text-slate-300 flex items-center gap-2"><svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zM9 5a1 1 0 112 0v4a1 1 0 01-.293.707l-2 2a1 1 0 11-1.414-1.414L9 9.586V5z"/></svg> We remember your last search on this device for quick re-access.</p>
-            </section>
+        <div id="error-message" class="hidden bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg relative mb-6" role="alert"></div>
 
-            <div id="error-message" class="hidden bg-amber-100/90 text-amber-900 border border-amber-300 px-5 py-4 rounded-2xl shadow mb-4" role="alert"></div>
+        <div id="search-meta" class="hidden bg-white border border-gray-200 rounded-lg p-4 shadow-sm mb-6"></div>
 
-            <div id="search-meta" class="hidden bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3" aria-live="polite"></div>
-
-            <div id="search-results" class="space-y-5 pb-16" aria-live="polite" aria-busy="false">
-                <!-- Dynamic results -->
-            </div>
-        </main>
+        <div id="search-results" class="space-y-4">
+            <!-- Search results will be appended here -->
+        </div>
     </div>
 
     <script>
@@ -137,13 +116,6 @@
 
             fromInput.addEventListener('input', () => handleAutocomplete(fromInput, fromSuggestions));
             toInput.addEventListener('input', () => handleAutocomplete(toInput, toSuggestions));
-            swapButton.addEventListener('click', () => {
-                const currentFrom = fromInput.value;
-                fromInput.value = toInput.value;
-                toInput.value = currentFrom;
-                handleAutocomplete(fromInput, fromSuggestions);
-                handleAutocomplete(toInput, toSuggestions);
-            });
             document.addEventListener('click', (event) => {
                 if (!fromInput.contains(event.target)) fromSuggestions.classList.add('hidden');
                 if (!toInput.contains(event.target)) toSuggestions.classList.add('hidden');
@@ -186,20 +158,7 @@
                 searchButton.textContent = 'Searching...';
                 searchResults.setAttribute('aria-busy', 'true');
                 errorMessage.classList.add('hidden');
-                errorMessage.innerHTML = '';
-                searchResults.innerHTML = `
-                    <div class="grid gap-4" role="presentation">
-                        ${Array.from({ length: 3 }).map(() => `
-                            <div class="bg-white/5 border border-white/5 rounded-3xl p-6 animate-pulse">
-                                <div class="h-5 bg-white/20 rounded w-1/3 mb-5"></div>
-                                <div class="space-y-3">
-                                    <div class="h-4 bg-white/10 rounded"></div>
-                                    <div class="h-4 bg-white/10 rounded w-2/3"></div>
-                                    <div class="h-4 bg-white/10 rounded w-1/2"></div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>`;
+                searchResults.innerHTML = '<div class="text-center p-4">Loading results...</div>';
 
                 try {
                     const response = await fetch(`/api/search?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&date=${encodeURIComponent(date)}`);
@@ -221,17 +180,16 @@
                     searchMeta.classList.add('hidden');
                 } finally {
                     searchButton.disabled = false;
-                    searchButton.textContent = 'Search buses';
-                    searchResults.setAttribute('aria-busy', 'false');
+                    searchButton.textContent = 'Search';
                 }
             }
 
             function displayResults(results, meta = null) {
                 if (!Array.isArray(results) || results.length === 0) {
                     searchResults.innerHTML = `
-                        <div class="bg-white/5 border border-white/10 rounded-3xl p-8 text-center text-slate-200">
-                            <h3 class="text-2xl font-semibold mb-2">No buses match this search</h3>
-                            <p class="text-slate-400">Try swapping your origin and destination, choosing a different date, or exploring nearby terminals.</p>
+                        <div class="bg-white p-6 rounded-lg shadow text-center">
+                            <h3 class="text-xl font-semibold mb-2">No buses found</h3>
+                            <p class="text-gray-600">Try adjusting your search criteria or checking back later.</p>
                         </div>`;
                     searchMeta.classList.add('hidden');
                     return;
@@ -244,89 +202,66 @@
                 if (meta) {
                     searchMeta.classList.remove('hidden');
                     searchMeta.innerHTML = `
-                        <div>
-                            <p class="text-xs uppercase tracking-[0.2em] text-indigo-200">Journey</p>
-                            <p class="text-2xl font-semibold text-white">${meta.from} → ${meta.to}</p>
-                        </div>
-                        <div class="flex flex-wrap gap-2 text-sm text-slate-200">
-                            <span class="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/40">${meta.dayOfWeek}</span>
-                            <span class="px-3 py-1 rounded-full bg-white/10 border border-white/10">${meta.total} result${meta.total === 1 ? '' : 's'}</span>
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                                <p class="text-sm text-gray-500 uppercase tracking-wide">Journey</p>
+                                <p class="text-xl font-semibold text-gray-800">${meta.from} → ${meta.to}</p>
+                            </div>
+                            <div class="text-sm text-gray-600">
+                                <span class="font-semibold">${meta.dayOfWeek}</span> · ${meta.total} result${meta.total === 1 ? '' : 's'}
+                            </div>
                         </div>`;
                 }
 
                 results.forEach((bus, index) => {
-                    const availability = Array.isArray(bus.availability) && bus.availability.length ? bus.availability : ['Runs daily'];
+                    const availability = Array.isArray(bus.availability) && bus.availability.length > 0 ? bus.availability.join(', ') : 'Runs daily';
+                    const stops = Array.isArray(bus.stops) && bus.stops.length > 0 ? bus.stops.join(', ') : 'Non-stop or not listed';
                     const isHighlighted = index === highlightIndex;
 
-                    const card = document.createElement('article');
-                    card.className = `group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.08] backdrop-blur transition-all duration-300 ${isHighlighted ? 'ring-2 ring-offset-2 ring-offset-slate-900 ring-indigo-400/70 shadow-indigo-500/40' : 'hover:border-indigo-300/40 hover:shadow-lg hover:shadow-indigo-500/10'}`;
-                    card.setAttribute('tabindex', '0');
-                    if (isHighlighted) {
-                        card.setAttribute('aria-label', 'Next departure highlighted');
-                    }
+                    const card = document.createElement('div');
+                    card.className = `bg-white p-6 rounded-lg shadow-md border ${isHighlighted ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200 hover:border-indigo-400'} transition`;
                     card.innerHTML = `
-                        <div class="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" aria-hidden="true">
-                            <div class="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-indigo-500/30 blur-3xl"></div>
-                            <div class="absolute bottom-0 left-0 h-40 w-40 rounded-full bg-cyan-500/20 blur-3xl"></div>
+                        <div class="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <p class="text-sm uppercase tracking-wide text-gray-500">${bus.route || 'Unspecified Route'}</p>
+                                    ${renderStatusBadge(bus.status)}
+                                    ${isHighlighted ? '<span class="px-2 py-1 text-xs font-semibold bg-indigo-100 text-indigo-700 rounded-full">Next departure</span>' : ''}
+                                </div>
+                                <h2 class="text-2xl font-bold text-gray-800 mt-1">${bus.departsFrom} → ${bus.arrivesAt}</h2>
+                                <p class="text-gray-600 mt-1">Operated by <span class="font-semibold">${bus.operator}</span></p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-lg font-semibold text-indigo-600">${bus.departureTime} → ${bus.arrivalTime || 'N/A'}</p>
+                                <p class="text-sm text-gray-500">${availability}</p>
+                            </div>
                         </div>
-                        <div class="relative flex flex-col gap-6">
-                            <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6">
-                                <div class="flex flex-col lg:flex-row lg:items-center gap-6">
-                                    <div class="flex items-center gap-4">
-                                        <div class="flex flex-col items-center gap-2">
-                                            <span class="text-[0.65rem] uppercase tracking-[0.35em] text-indigo-200">Depart</span>
-                                            <span class="text-4xl font-semibold text-white leading-none">${bus.departureTime}</span>
-                                        </div>
-                                        <div class="flex items-center text-indigo-200" aria-hidden="true">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14m-6-6l6 6-6 6" />
-                                            </svg>
-                                        </div>
-                                        <div class="flex flex-col items-center gap-2">
-                                            <span class="text-[0.65rem] uppercase tracking-[0.35em] text-indigo-200">Arrive</span>
-                                            <span class="text-lg font-medium text-slate-100">${bus.arrivalTime || '—'}</span>
-                                        </div>
-                                    </div>
-                                    <div class="space-y-3">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <h3 class="text-xl font-semibold text-white">${bus.departsFrom} → ${bus.arrivesAt}</h3>
-                                            ${renderStatusBadge(bus.status)}
-                                            ${bus.isDaily ? renderMetaBadge('Single-day service', 'bg-indigo-500/20 text-indigo-100 border-indigo-300/40') : ''}
-                                            ${isHighlighted ? renderMetaBadge('Next departure', 'bg-emerald-500/20 text-emerald-100 border-emerald-400/50') : ''}
-                                        </div>
-                                        <p class="text-sm text-slate-300">Route ${bus.route || '—'} · ${bus.operator || 'Unknown operator'}</p>
-                                        <p class="text-xs text-slate-400">Updated ${formatRelativeTime(bus.updatedAt || bus.createdAt)}</p>
-                                        ${renderStopsList(bus.stops)}
-                                    </div>
-                                </div>
-                                <div class="flex flex-col justify-between text-right gap-4">
-                                    <div>
-                                        <p class="text-[0.65rem] uppercase tracking-[0.35em] text-slate-300">Fare</p>
-                                        <p class="text-3xl font-semibold text-white">${bus.price || 'Contact operator'}</p>
-                                    </div>
-                                    <div class="flex flex-wrap gap-2 justify-end text-xs text-slate-200">
-                                        ${renderChip('Entrance', bus.expresswayEntrance)}
-                                        ${renderChip('Exit', bus.expresswayExit)}
-                                    </div>
-                                </div>
+
+                        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
+                            <div>
+                                <p><span class="font-semibold">Expressway Entrance:</span> ${bus.expresswayEntrance || 'Not listed'}</p>
+                                <p><span class="font-semibold">Expressway Exit:</span> ${bus.expresswayExit || 'Not listed'}</p>
                             </div>
-                            <div class="flex flex-wrap gap-2 border-t border-white/10 pt-4">
-                                ${renderAvailabilityBadges(availability)}
+                            <div>
+                                <p><span class="font-semibold">Price:</span> ${bus.price || 'Contact operator'}</p>
+                                <p><span class="font-semibold">Stops:</span> ${stops}</p>
                             </div>
+                        </div>
+
+                        <details class="mt-4 bg-gray-50 rounded-md p-3 text-sm text-gray-600">
+                            <summary class="cursor-pointer font-semibold text-gray-700">Schedule notes</summary>
+                            <p class="mt-2">Updated ${formatRelativeTime(bus.updatedAt || bus.createdAt)}. Availability: ${availability}.</p>
+                        </details>
+
+                        <div class="mt-4 flex flex-wrap gap-2">
+                            ${(bus.availability || []).map(day => `<span class="px-3 py-1 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-full">${day}</span>`).join('')}
                         </div>`;
                     searchResults.appendChild(card);
                 });
             }
 
             function displayError(message) {
-                errorMessage.innerHTML = `
-                    <div class="flex items-start gap-3">
-                        <svg class="w-5 h-5 text-amber-600" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.721-1.36 3.486 0l6.518 11.604c.75 1.336-.213 2.997-1.743 2.997H3.482c-1.53 0-2.492-1.66-1.743-2.997L8.257 3.1zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-.25-6.75a.75.75 0 00-1.5 0v3.5a.75.75 0 001.5 0v-3.5z" clip-rule="evenodd" /></svg>
-                        <div>
-                            <p class="font-semibold text-amber-900">We ran into an issue</p>
-                            <p class="text-sm text-amber-800">${message}</p>
-                        </div>
-                    </div>`;
+                errorMessage.textContent = message;
                 errorMessage.classList.remove('hidden');
             }
 
@@ -339,61 +274,14 @@
 
             function renderStatusBadge(status) {
                 const map = {
-                    'Scheduled': { classes: 'bg-indigo-500/20 text-indigo-100 border border-indigo-400/40', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />' },
-                    'Departed': { classes: 'bg-emerald-500/20 text-emerald-100 border border-emerald-400/40', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7" />' },
-                    'Arrived': { classes: 'bg-blue-500/20 text-blue-100 border border-blue-400/40', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10h11M12 5l5 5-5 5" />' },
-                    'Delayed': { classes: 'bg-amber-500/20 text-amber-100 border border-amber-400/40', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l2.5 2.5M12 6a9 9 0 100 18 9 9 0 000-18z" />' },
-                    'Cancelled': { classes: 'bg-rose-500/20 text-rose-100 border border-rose-400/40', icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />' }
+                    'Scheduled': 'bg-gray-100 text-gray-700',
+                    'Departed': 'bg-green-100 text-green-700',
+                    'Arrived': 'bg-blue-100 text-blue-700',
+                    'Delayed': 'bg-yellow-100 text-yellow-700',
+                    'Cancelled': 'bg-red-100 text-red-700'
                 };
-                const fallback = map['Scheduled'];
-                const config = map[status] || fallback;
-                return `
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full ${config.classes}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            ${config.icon}
-                        </svg>
-                        ${status || 'Scheduled'}
-                    </span>`;
-            }
-
-            function renderChip(label, value) {
-                if (!value) return '';
-                return `<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-slate-100"><span class="font-medium text-slate-200">${label}</span><span>${value}</span></span>`;
-            }
-
-            function renderMetaBadge(label, classes) {
-                return `<span class="px-2.5 py-1 text-xs font-semibold rounded-full border ${classes}">${label}</span>`;
-            }
-
-            function renderAvailabilityBadges(days) {
-                return days.map(day => `<span class="px-3 py-1 text-xs rounded-full bg-white/10 text-slate-200 border border-white/10">${day}</span>`).join('');
-            }
-
-            function renderStopsList(stops) {
-                if (!Array.isArray(stops) || stops.length === 0) {
-                    return '<p class="text-xs text-slate-300">Non-stop service or stops not listed.</p>';
-                }
-                const trimmedStops = stops.map(stop => stop.trim()).filter(Boolean);
-                if (!trimmedStops.length) {
-                    return '<p class="text-xs text-slate-300">Non-stop service or stops not listed.</p>';
-                }
-                if (trimmedStops.length <= 3) {
-                    return `<p class="text-xs text-slate-300">Stops: ${trimmedStops.join(' • ')}</p>`;
-                }
-                const preview = trimmedStops.slice(0, 3).join(' • ');
-                const remainder = trimmedStops.slice(3)
-                    .map(stop => `<li class="px-2 py-1 rounded-lg bg-white/5 border border-white/5">${stop}</li>`)
-                    .join('');
-                return `
-                    <details class="group text-xs text-slate-300">
-                        <summary class="cursor-pointer flex items-center gap-2 text-slate-200 hover:text-white">
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 text-[0.65rem] uppercase tracking-wide text-indigo-100">Stops</span>
-                            <span>${preview}</span>
-                            <span class="text-[0.65rem] text-indigo-200 group-open:hidden">+${trimmedStops.length - 3} more</span>
-                            <span class="hidden text-[0.65rem] text-indigo-200 group-open:inline">Hide</span>
-                        </summary>
-                        <ul class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-200">${remainder}</ul>
-                    </details>`;
+                const classes = map[status] || map['Scheduled'];
+                return `<span class="px-2 py-1 text-xs font-semibold rounded-full ${classes}">${status || 'Scheduled'}</span>`;
             }
 
             function formatRelativeTime(timestamp) {
