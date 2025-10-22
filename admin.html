@@ -84,6 +84,57 @@
                 </div>
                 <p id="bus-empty-state" class="hidden text-center text-gray-500 py-6">No buses in the timetable yet.</p>
             </div>
+
+            <section class="mt-8">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                        <div>
+                            <h3 class="text-xl font-semibold">Price Matrix & Destinations</h3>
+                            <p class="text-gray-600 text-sm">Maintain official destinations and fare presets. New entries instantly power autocomplete fields.</p>
+                        </div>
+                        <button id="refresh-matrix" class="self-start md:self-auto bg-slate-100 text-slate-700 px-4 py-2 rounded-md hover:bg-slate-200">Refresh Matrix</button>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="text-lg font-semibold mb-2">Destinations</h4>
+                                <form id="location-form" class="flex gap-2">
+                                    <input type="text" id="location-name" placeholder="Add new destination" class="flex-1 p-2 border rounded" required>
+                                    <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Add</button>
+                                </form>
+                                <p id="location-message" class="text-sm mt-2"></p>
+                            </div>
+                            <div id="location-list" class="max-h-64 overflow-y-auto border border-gray-200 rounded-md divide-y"></div>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <h4 class="text-lg font-semibold mb-2">Quick Fare Entry</h4>
+                                <form id="fare-form" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <input type="text" id="fare-origin" list="locations-list" placeholder="Origin" class="p-2 border rounded" required>
+                                    <input type="text" id="fare-destination" list="locations-list" placeholder="Destination" class="p-2 border rounded" required>
+                                    <input type="text" id="fare-price" placeholder="Price (e.g., 1200 LKR)" class="p-2 border rounded" required>
+                                    <button type="submit" class="md:col-span-3 bg-green-600 text-white py-2 rounded-md hover:bg-green-700">Save Fare</button>
+                                </form>
+                                <p id="fare-message" class="text-sm mt-2"></p>
+                            </div>
+                            <div class="border border-gray-200 rounded-md overflow-hidden">
+                                <table class="min-w-full text-sm">
+                                    <thead class="bg-gray-50 text-gray-600 uppercase tracking-wide text-xs">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left">Origin</th>
+                                            <th class="px-3 py-2 text-left">Destination</th>
+                                            <th class="px-3 py-2 text-left">Price</th>
+                                            <th class="px-3 py-2 text-right">Updated</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="fare-table" class="divide-y"></tbody>
+                                </table>
+                                <p id="fare-empty" class="hidden text-sm text-gray-500 text-center py-4">No fares yet. Add your first pairing above.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
@@ -99,8 +150,8 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" placeholder="Route (e.g., EX1/01)" id="route" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Operator" id="operator" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Departs From" id="departsFrom" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Arrives At" id="arrivesAt" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="departsFrom" list="locations-list" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Arrives At" id="arrivesAt" list="locations-list" class="w-full p-2 border rounded" required>
                     <input type="time" placeholder="Departure Time" id="departureTime" class="w-full p-2 border rounded" required>
                     <input type="time" placeholder="Arrival Time" id="arrivalTime" class="w-full p-2 border rounded">
                     <input type="text" placeholder="Price (e.g., 1200 LKR)" id="price" class="w-full p-2 border rounded">
@@ -136,8 +187,8 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" placeholder="Route (e.g., EX1)" id="bulk-route" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Operator" id="bulk-operator" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Departs From" id="bulk-departsFrom" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Arrives At" id="bulk-arrivesAt" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="bulk-departsFrom" list="locations-list" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Arrives At" id="bulk-arrivesAt" list="locations-list" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Price" id="bulk-price" class="w-full p-2 border rounded">
                     <input type="text" placeholder="Expressway Entrance" id="bulk-expresswayEntrance" class="w-full p-2 border rounded">
                     <input type="text" placeholder="Expressway Exit" id="bulk-expresswayExit" class="w-full p-2 border rounded">
@@ -173,6 +224,8 @@
             </form>
         </div>
     </div>
+
+    <datalist id="locations-list"></datalist>
 
     <script>
         const TOKEN_KEY = 'slbustimetable:token';
@@ -461,7 +514,8 @@
             }
             payload.availability = getSelectedDays(availabilityContainer);
             payload.stops = stopsTextarea.value
-                .split(/?
+                .split(/
+?
 /)
                 .map(line => line.trim())
                 .filter(Boolean);
@@ -492,7 +546,8 @@
             event.preventDefault();
             bulkMessage.textContent = '';
             const availability = getSelectedDays(bulkAvailabilityContainer);
-            const stops = bulkStopsTextarea.value.split(/?
+            const stops = bulkStopsTextarea.value.split(/
+?
 /).map(line => line.trim()).filter(Boolean);
 
             const route = document.getElementById('bulk-route').value.trim();

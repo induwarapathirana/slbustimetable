@@ -59,6 +59,7 @@
             const errorMessage = document.getElementById('error-message');
             const fromInput = document.getElementById('from');
             const toInput = document.getElementById('to');
+            const swapButton = document.getElementById('swap-button');
             const fromSuggestions = document.getElementById('from-suggestions');
             const toSuggestions = document.getElementById('to-suggestions');
             const dateInput = document.getElementById('date');
@@ -155,6 +156,7 @@
             async function performSearch(from, to, date, dayOfWeek) {
                 searchButton.disabled = true;
                 searchButton.textContent = 'Searching...';
+                searchResults.setAttribute('aria-busy', 'true');
                 errorMessage.classList.add('hidden');
                 searchResults.innerHTML = '<div class="text-center p-4">Loading results...</div>';
 

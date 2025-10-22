@@ -45,13 +45,31 @@
         </div>
 
         <div class="bg-white p-6 rounded-lg shadow-md">
-            <h2 class="text-xl font-bold mb-4">Add Unscheduled Bus</h2>
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                <h2 class="text-xl font-bold">Add Unscheduled Bus</h2>
+                <div class="flex items-center gap-3 bg-indigo-50 text-indigo-700 px-3 py-2 rounded-md text-sm">
+                    <span class="font-semibold">Mode:</span>
+                    <label class="flex items-center gap-1"><input type="radio" name="add-mode" value="single" id="mode-single" class="text-indigo-600" checked> Single day</label>
+                    <label class="flex items-center gap-1"><input type="radio" name="add-mode" value="persist" id="mode-persist" class="text-indigo-600"> Keep in timetable</label>
+                </div>
+            </div>
             <form id="add-bus-form" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <input type="text" placeholder="Route" id="add-route" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Operator" id="add-operator" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Arrives At (Destination)" id="add-arrivesAt" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="add-departsFrom" list="timekeeper-locations" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Arrives At" id="add-arrivesAt" list="timekeeper-locations" class="w-full p-2 border rounded" required>
                     <input type="time" id="add-departureTime" class="w-full p-2 border rounded" required>
+                    <input type="time" id="add-arrivalTime" class="w-full p-2 border rounded" placeholder="Optional arrival">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="add-price" class="w-full p-2 border rounded" placeholder="Fare (optional)">
+                    <input type="text" id="add-expresswayEntrance" class="w-full p-2 border rounded" placeholder="Expressway entrance">
+                    <input type="text" id="add-expresswayExit" class="w-full p-2 border rounded" placeholder="Expressway exit">
+                </div>
+                <div>
+                    <label class="font-semibold text-sm text-gray-700">Intermediate Stops (one per line)</label>
+                    <textarea id="add-stops" rows="3" class="w-full mt-2 p-2 border rounded" placeholder="Enter optional stops"></textarea>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="time" id="add-arrivalTime" class="w-full p-2 border rounded" placeholder="Optional arrival">
@@ -63,8 +81,11 @@
                 <p id="add-bus-message" class="text-sm"></p>
             </form>
         </div>
+
+        <datalist id="timekeeper-locations"></datalist>
     </div>
 
+    
     <script>
         const TOKEN_KEY = 'slbustimetable:token';
         const state = {
@@ -267,5 +288,6 @@
 
         toggleView();
     </script>
+
 </body>
 </html>
