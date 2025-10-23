@@ -139,17 +139,72 @@
 
             let currentUser = null;
 
+            function normalizeRole(role) {
+                return (role || '').toString().trim().toLowerCase();
+            }
+
+            async function fetchUserProfile(user) {
+                if (!user) return null;
+                const email = (user.email || '').trim();
+                const emailLower = email.toLowerCase();
+
+                const usersCollection = db.collection('users');
+
+                const tryDoc = async (docId) => {
+                    if (!docId) return null;
+                    const doc = await usersCollection.doc(docId).get();
+                    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+                };
+
+                try {
+                    let profile = await tryDoc(user.uid);
+                    if (profile) return profile;
+
+                    profile = await tryDoc(email);
+                    if (profile) return profile;
+
+                    if (emailLower !== email) {
+                        profile = await tryDoc(emailLower);
+                        if (profile) return profile;
+                    }
+
+                    if (email) {
+                        let snapshot = await usersCollection.where('emailLower', '==', emailLower).limit(1).get();
+                        if (!snapshot.empty) {
+                            const doc = snapshot.docs[0];
+                            return { id: doc.id, ...doc.data() };
+                        }
+
+                        snapshot = await usersCollection.where('email', '==', email).limit(1).get();
+                        if (!snapshot.empty) {
+                            const doc = snapshot.docs[0];
+                            return { id: doc.id, ...doc.data() };
+                        }
+                    }
+
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                    throw error;
+                }
+            }
+
             // --- AUTHENTICATION & ACCESS CONTROL ---
             auth.onAuthStateChanged(async (user) => {
                 if (user) {
-                    const userDoc = await db.collection('users').doc(user.uid).get();
-                    if (userDoc.exists && userDoc.data().role === 'admin') {
-                        currentUser = user;
-                        loginScreen.classList.add('hidden');
-                        dashboard.classList.remove('hidden');
-                        loadUsers();
-                    } else {
-                        alert('Access Denied. You must be an administrator to view this page.');
+                    try {
+                        const profile = await fetchUserProfile(user);
+                        if (profile && normalizeRole(profile.role) === 'admin') {
+                            currentUser = user;
+                            loginScreen.classList.add('hidden');
+                            dashboard.classList.remove('hidden');
+                            loadUsers();
+                        } else {
+                            alert('Access Denied. You must be an administrator to view this page.');
+                            auth.signOut();
+                        }
+                    } catch (error) {
+                        alert('Unable to verify your permissions. Please try again later.');
                         auth.signOut();
                     }
                 } else {
@@ -187,11 +242,14 @@
                     userTableBody.innerHTML = '';
                     snapshot.forEach(doc => {
                         const user = doc.data();
+                        const displayEmail = (user.email || user.username || user.name || doc.id || '').toString();
+                        const displayRole = (user.role || user.userRole || '—').toString();
+                        const displayDepot = (user.depot || user.depotName || user.location || 'N/A').toString();
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap">${user.email}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${user.role}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${user.depot || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayEmail}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayRole}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayDepot}</td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <button class="text-red-600 hover:text-red-900 delete-user-btn" data-uid="${doc.id}">Delete</button>
                             </td>

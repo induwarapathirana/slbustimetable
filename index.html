@@ -3,59 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sri Lanka Expressway Bus Timetable Search</title>
+    <title>Sri Lanka Expressway Bus Timetable</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        }
+        .glass-panel {
+            backdrop-filter: blur(18px);
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.88), rgba(30, 41, 59, 0.78));
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+        .suggestions-panel {
+            box-shadow: 0 18px 45px -15px rgba(15, 23, 42, 0.35);
+        }
     </style>
 </head>
-<body class="bg-gray-100">
-
-    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800">Find Your Bus</h1>
-            <p class="text-gray-600 mt-2">Real-time bus schedules across the Expressways Sri Lanka</p>
-        </header>
-
-        <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
-            <form id="search-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div class="md:col-span-1 relative">
-                    <label for="from" class="block text-sm font-medium text-gray-700">From</label>
-                    <input type="text" id="from" placeholder="e.g., Makumbura" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                    <div id="from-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 hidden"></div>
-                </div>
-                <div class="md:col-span-1 relative">
-                    <label for="to" class="block text-sm font-medium text-gray-700">To</label>
-                    <input type="text" id="to" placeholder="e.g., Galle" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                    <div id="to-suggestions" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 hidden"></div>
-                </div>
-                <div class="md:col-span-1">
-                    <label for="date" class="block text-sm font-medium text-gray-700">Date</label>
-                    <input type="date" id="date" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
-                </div>
-                <div class="md:col-span-1">
-                    <button type="submit" id="search-button" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 font-semibold">Search</button>
-                </div>
-            </form>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+    <div class="relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-950 to-slate-900"></div>
+        <div class="pointer-events-none absolute inset-0 opacity-50" aria-hidden="true">
+            <div class="absolute -top-24 -left-24 w-72 h-72 bg-indigo-500/30 blur-3xl rounded-full"></div>
+            <div class="absolute -bottom-32 right-0 w-96 h-96 bg-blue-500/20 blur-3xl rounded-full"></div>
         </div>
-        
-        <div id="config-warning" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
-            <strong class="font-bold">Configuration Error!</strong>
-            <span class="block sm:inline">Firebase config is missing. Please paste it into index.html.</span>
-        </div>
+        <div class="relative z-10">
+            <header class="max-w-5xl mx-auto px-6 pt-12 pb-8 text-center">
+                <p class="text-sm font-semibold uppercase tracking-[0.3em] text-indigo-300">Sri Lanka Expressway Network</p>
+                <h1 class="mt-4 text-4xl md:text-5xl font-extrabold text-white">Plan your next express departure in seconds</h1>
+                <p class="mt-4 text-base md:text-lg text-slate-300 max-w-3xl mx-auto">Search live expressway departures, compare operators, and see real-time status updates for any date. Crafted for commuters, timekeepers, and travellers alike.</p>
+            </header>
 
-        <div id="error-message" class="hidden bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg relative mb-6" role="alert"></div>
+            <main class="max-w-5xl mx-auto px-6 pb-16">
+                <section class="glass-panel rounded-3xl p-6 md:p-8 shadow-2xl">
+                    <form id="search-form" class="grid grid-cols-1 md:grid-cols-[repeat(4,minmax(0,1fr))] gap-4 items-end" autocomplete="off">
+                        <div class="relative">
+                            <label for="from" class="block text-xs font-semibold uppercase tracking-wide text-indigo-200">From</label>
+                            <input type="text" id="from" name="from" placeholder="e.g. Makumbura" class="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/60" aria-autocomplete="list" aria-controls="from-suggestions" aria-expanded="false">
+                            <div id="from-suggestions" class="suggestions-panel absolute z-20 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/95 text-left" role="listbox"></div>
+                        </div>
+                        <div class="relative">
+                            <label for="to" class="block text-xs font-semibold uppercase tracking-wide text-indigo-200">To</label>
+                            <input type="text" id="to" name="to" placeholder="e.g. Galle" class="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/60" aria-autocomplete="list" aria-controls="to-suggestions" aria-expanded="false">
+                            <div id="to-suggestions" class="suggestions-panel absolute z-20 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/95 text-left" role="listbox"></div>
+                        </div>
+                        <div>
+                            <label for="date" class="block text-xs font-semibold uppercase tracking-wide text-indigo-200">Date</label>
+                            <input type="date" id="date" name="date" class="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/60">
+                        </div>
+                        <div>
+                            <button type="submit" id="search-button" class="mt-6 w-full rounded-xl bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-500 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-indigo-500/20 transition hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400 focus:ring-offset-slate-950">Search departures</button>
+                        </div>
+                    </form>
+                </section>
 
-        <div id="search-results" class="space-y-4">
-            <!-- Search results will be appended here -->
+                <section id="config-warning" class="mt-6 hidden rounded-2xl border border-red-400/50 bg-red-900/40 px-6 py-4 text-red-100" role="alert">
+                    <p class="font-semibold">Configuration missing</p>
+                    <p class="text-sm text-red-200">Firebase configuration was not detected. Please paste your project credentials into this file.</p>
+                </section>
+
+                <section id="error-message" class="mt-6 hidden rounded-2xl border border-amber-300/40 bg-amber-900/40 px-6 py-4 text-amber-100" role="alert"></section>
+
+                <div id="results-summary" class="mt-8 hidden text-sm text-slate-300"></div>
+
+                <div id="search-results" class="mt-6 space-y-6" aria-live="polite" aria-busy="false"></div>
+                <div id="live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+            </main>
         </div>
     </div>
 
     <script>
-        // This is the correct format. Just paste your values here.
         const firebaseConfig = {
             apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
             authDomain: "sl-bus-timetable-app.firebaseapp.com",
@@ -66,7 +86,6 @@
             measurementId: "G-JEBZ0J484N"
         };
 
-        // --- SCRIPT INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', () => {
             const configWarning = document.getElementById('config-warning');
             if (!firebaseConfig.apiKey) {
@@ -77,189 +96,343 @@
             const app = firebase.initializeApp(firebaseConfig);
             const db = firebase.firestore();
 
-            // DOM elements
             const searchForm = document.getElementById('search-form');
             const searchButton = document.getElementById('search-button');
             const searchResults = document.getElementById('search-results');
+            const resultsSummary = document.getElementById('results-summary');
             const errorMessage = document.getElementById('error-message');
+            const liveRegion = document.getElementById('live-region');
             const fromInput = document.getElementById('from');
             const toInput = document.getElementById('to');
             const fromSuggestions = document.getElementById('from-suggestions');
             const toSuggestions = document.getElementById('to-suggestions');
             const dateInput = document.getElementById('date');
 
-            // Set default date to today
-            const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
-            dateInput.value = `${yyyy}-${mm}-${dd}`;
-            
-            let allLocations = new Set();
-            let unsubscribe = null;
+            const stored = window.localStorage.getItem('sl-bus-last-search');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    if (parsed.from) fromInput.value = parsed.from;
+                    if (parsed.to) toInput.value = parsed.to;
+                    if (parsed.date) dateInput.value = parsed.date;
+                } catch (_) {
+                    /* ignore malformed cache */
+                }
+            }
 
-            // Fetch all buses once to populate autocomplete suggestions
+            if (!dateInput.value) {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                dateInput.value = `${yyyy}-${mm}-${dd}`;
+            }
+
+            let allLocations = new Set();
+            let baseUnsubscribe = null;
+            let specialUnsubscribe = null;
+            let baseResults = [];
+            let specialResults = [];
+            let lastSearchMeta = null;
+
             db.collection('buses').onSnapshot(snapshot => {
-                allLocations = new Set();
+                const nextLocations = new Set();
                 snapshot.forEach(doc => {
                     const bus = doc.data();
-                    if (bus.departsFrom) allLocations.add(bus.departsFrom.trim());
-                    if (bus.arrivesAt) allLocations.add(bus.arrivesAt.trim());
-                    if (bus.expresswayEntrance) allLocations.add(bus.expresswayEntrance.trim());
-                    if (bus.expresswayExit) allLocations.add(bus.expresswayExit.trim());
+                    if (bus.departsFrom) nextLocations.add(bus.departsFrom.trim());
+                    if (bus.arrivesAt) nextLocations.add(bus.arrivesAt.trim());
+                    if (bus.expresswayEntrance) nextLocations.add(bus.expresswayEntrance.trim());
+                    if (bus.expresswayExit) nextLocations.add(bus.expresswayExit.trim());
                 });
-            }, err => {
-                console.error("Error fetching locations: ", err);
+                allLocations = nextLocations;
             });
 
-            // Autocomplete Handlers
-            const handleAutocomplete = (input, suggestionsContainer) => {
+            db.collection('priceMatrix').onSnapshot(snapshot => {
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.origin) allLocations.add(data.origin.trim());
+                    if (data.destination) allLocations.add(data.destination.trim());
+                });
+            });
+
+            const handleAutocomplete = (input, container) => {
                 const query = input.value.toLowerCase().trim();
-                suggestionsContainer.innerHTML = '';
+                container.innerHTML = '';
                 if (!query) {
-                    suggestionsContainer.classList.add('hidden');
+                    container.classList.add('hidden');
+                    input.setAttribute('aria-expanded', 'false');
                     return;
                 }
-
-                const filtered = [...allLocations].filter(loc => loc.toLowerCase().includes(query)).slice(0, 5);
-                if (filtered.length > 0) {
-                    suggestionsContainer.classList.remove('hidden');
-                    filtered.forEach(loc => {
-                        const div = document.createElement('div');
-                        div.textContent = loc;
-                        div.className = 'p-2 hover:bg-gray-100 cursor-pointer';
-                        div.onclick = () => {
-                            input.value = loc;
-                            suggestionsContainer.classList.add('hidden');
-                        };
-                        suggestionsContainer.appendChild(div);
-                    });
-                } else {
-                    suggestionsContainer.classList.add('hidden');
+                const matches = [...allLocations].filter(loc => loc.toLowerCase().includes(query)).slice(0, 7);
+                if (!matches.length) {
+                    container.classList.add('hidden');
+                    input.setAttribute('aria-expanded', 'false');
+                    return;
                 }
+                container.classList.remove('hidden');
+                input.setAttribute('aria-expanded', 'true');
+                matches.forEach((loc, index) => {
+                    const option = document.createElement('button');
+                    option.type = 'button';
+                    option.className = 'w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-800 focus:bg-slate-800 focus:outline-none';
+                    option.textContent = loc;
+                    option.id = `${input.id}-suggestion-${index}`;
+                    option.setAttribute('role', 'option');
+                    option.addEventListener('click', () => {
+                        input.value = loc;
+                        container.classList.add('hidden');
+                        input.setAttribute('aria-expanded', 'false');
+                        input.focus();
+                    });
+                    container.appendChild(option);
+                });
             };
-            
+
             fromInput.addEventListener('input', () => handleAutocomplete(fromInput, fromSuggestions));
             toInput.addEventListener('input', () => handleAutocomplete(toInput, toSuggestions));
-            document.addEventListener('click', (e) => { // Hide suggestions on outside click
-                if (!fromInput.contains(e.target)) fromSuggestions.classList.add('hidden');
-                if (!toInput.contains(e.target)) toSuggestions.classList.add('hidden');
+            document.addEventListener('click', (event) => {
+                if (!fromSuggestions.contains(event.target) && event.target !== fromInput) {
+                    fromSuggestions.classList.add('hidden');
+                    fromInput.setAttribute('aria-expanded', 'false');
+                }
+                if (!toSuggestions.contains(event.target) && event.target !== toInput) {
+                    toSuggestions.classList.add('hidden');
+                    toInput.setAttribute('aria-expanded', 'false');
+                }
             });
 
-
-            // --- SEARCH LOGIC ---
-            searchForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const fromValue = fromInput.value.toLowerCase().trim();
-                const toValue = toInput.value.toLowerCase().trim();
+            searchForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const fromValue = fromInput.value.trim();
+                const toValue = toInput.value.trim();
                 const dateValue = dateInput.value;
 
                 if (!fromValue || !toValue || !dateValue) {
-                    displayError("Please fill in all fields.");
+                    displayError('Please fill in every field before searching.');
                     return;
                 }
 
-                const searchDate = new Date(dateValue);
-                searchDate.setHours(12); // Avoid timezone issues
+                errorMessage.classList.add('hidden');
+                resultsSummary.classList.add('hidden');
+                searchResults.setAttribute('aria-busy', 'true');
+                searchResults.innerHTML = '<div class="rounded-2xl border border-slate-700/60 bg-slate-900/60 px-4 py-6 text-center text-sm text-slate-300">Fetching departures...</div>';
+                liveRegion.textContent = 'Searching departures';
+
+                window.localStorage.setItem('sl-bus-last-search', JSON.stringify({ from: fromValue, to: toValue, date: dateValue }));
+
+                const searchDate = new Date(`${dateValue}T00:00:00`);
                 const dayOfWeek = searchDate.toLocaleString('en-US', { weekday: 'long' });
 
-                performSearch(fromValue, toValue, dayOfWeek);
-            });
-            
-            function performSearch(from, to, dayOfWeek) {
-                searchButton.disabled = true;
-                searchButton.textContent = 'Searching...';
-                errorMessage.classList.add('hidden');
-                searchResults.innerHTML = '<div class="text-center p-4">Loading results...</div>';
+                lastSearchMeta = { from: fromValue, to: toValue, date: dateValue, dayOfWeek };
 
-                if (unsubscribe) unsubscribe();
+                if (baseUnsubscribe) baseUnsubscribe();
+                if (specialUnsubscribe) specialUnsubscribe();
+                baseResults = [];
+                specialResults = [];
 
-                unsubscribe = db.collection('buses')
-                    .where('availability', 'array-contains', dayOfWeek)
-                    .orderBy('departureTime')
+                const baseQuery = db.collection('buses')
+                    .where('availability', 'array-contains', dayOfWeek);
+
+                baseUnsubscribe = baseQuery.onSnapshot(snapshot => {
+                    baseResults = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    mergeAndRender();
+                }, handleQueryError);
+
+                specialUnsubscribe = db.collection('buses')
+                    .where('specialDates', 'array-contains', dateValue)
                     .onSnapshot(snapshot => {
-                        const allBuses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        specialResults = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        mergeAndRender();
+                    }, handleQueryError);
+            });
 
-                        const results = allBuses.filter(bus => {
-                            const departsFrom = (bus.departsFrom || "").toLowerCase().trim();
-                            const arrivesAt = (bus.arrivesAt || "").toLowerCase().trim();
-                            const expresswayEntrance = (bus.expresswayEntrance || "").toLowerCase().trim();
-                            const expresswayExit = (bus.expresswayExit || "").toLowerCase().trim();
-
-                            const fromMatch = (departsFrom === from) || (expresswayEntrance === from);
-                            const toMatch = (arrivesAt === to) || (expresswayExit === to);
-
-                            return fromMatch && toMatch;
-                        });
-
-                        displayResults(results);
-                        searchButton.disabled = false;
-                        searchButton.textContent = 'Search';
-                    }, err => {
-                        console.error("Query Error: ", err);
-                        displayError("An error occurred. Please check the console and ensure your Firestore indexes are set up correctly.");
-                        searchButton.disabled = false;
-                        searchButton.textContent = 'Search';
-                    });
+            function mergeAndRender() {
+                if (!lastSearchMeta) return;
+                const combinedMap = new Map();
+                baseResults.concat(specialResults).forEach(bus => combinedMap.set(bus.id, bus));
+                const merged = Array.from(combinedMap.values());
+                const filtered = merged.filter(bus => matchesRoute(bus, lastSearchMeta.from, lastSearchMeta.to));
+                filtered.sort((a, b) => compareTimes(a.departureTime, b.departureTime));
+                displayResults(filtered, lastSearchMeta);
             }
 
-            function displayResults(buses) {
+            function matchesRoute(bus, fromValue, toValue) {
+                const from = fromValue.toLowerCase();
+                const to = toValue.toLowerCase();
+                const departsFrom = (bus.departsFrom || '').toLowerCase();
+                const arrivesAt = (bus.arrivesAt || '').toLowerCase();
+                const expresswayEntrance = (bus.expresswayEntrance || '').toLowerCase();
+                const expresswayExit = (bus.expresswayExit || '').toLowerCase();
+
+                const fromMatch = departsFrom === from || expresswayEntrance === from;
+                const toMatch = arrivesAt === to || expresswayExit === to;
+                return fromMatch && toMatch;
+            }
+
+            function handleQueryError(error) {
+                console.error('Query error:', error);
+                displayError('We could not reach the timetable right now. Please try again in a moment.');
+                searchResults.setAttribute('aria-busy', 'false');
+                searchButton.disabled = false;
+                searchButton.textContent = 'Search departures';
+            }
+
+            function displayResults(buses, meta) {
+                searchButton.disabled = false;
+                searchButton.textContent = 'Search departures';
+                searchResults.setAttribute('aria-busy', 'false');
                 searchResults.innerHTML = '';
-                if (buses.length === 0) {
-                    searchResults.innerHTML = '<div class="bg-white p-6 rounded-lg shadow text-center text-gray-600">No buses found for the selected route and date.</div>';
+
+                if (!buses.length) {
+                    resultsSummary.classList.remove('hidden');
+                    resultsSummary.innerHTML = `<span class="font-semibold text-slate-100">No departures found</span> for <span class="text-indigo-300">${meta.from}</span> → <span class="text-indigo-300">${meta.to}</span> on ${formatHumanDate(meta.date)}.`;
+                    searchResults.innerHTML = '<div class="rounded-2xl border border-slate-700/60 bg-slate-900/60 px-6 py-8 text-center text-sm text-slate-300">Try adjusting your locations or choosing a different date.</div>';
+                    liveRegion.textContent = 'No departures found';
                     return;
                 }
 
-                buses.forEach(bus => {
-                    const busCard = document.createElement('div');
-                    busCard.className = 'bg-white p-4 rounded-lg shadow-md transition-transform transform hover:scale-105';
+                const highlightIndex = findNextDepartureIndex(buses, meta.date);
+                resultsSummary.classList.remove('hidden');
+                resultsSummary.innerHTML = `<span class="font-semibold text-slate-100">${buses.length} departures</span> from <span class="text-indigo-300">${meta.from}</span> to <span class="text-indigo-300">${meta.to}</span> on ${formatHumanDate(meta.date)}.`;
 
-                    const statusColor = getStatusColor(bus.status);
+                buses.forEach((bus, index) => {
+                    const card = document.createElement('article');
+                    card.className = `group relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/70 p-6 transition shadow-xl shadow-indigo-900/10 hover:border-indigo-500/60 hover:shadow-indigo-500/30`;
+                    if (index === highlightIndex) {
+                        card.classList.add('ring-2', 'ring-indigo-400/80', 'ring-offset-2', 'ring-offset-slate-950');
+                    }
 
-                    busCard.innerHTML = `
-                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
-                            <div class="flex-1">
-                                <div class="flex items-center">
-                                    <span class="font-bold text-lg text-indigo-700">${bus.route}</span>
-                                    <span class="ml-4 px-3 py-1 text-sm font-semibold rounded-full ${statusColor.bg} ${statusColor.text}">${bus.status || 'Scheduled'}</span>
+                    const statusBadge = renderStatusBadge(bus.status);
+                    const priceTag = bus.price ? `<span class="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-1 text-sm font-semibold text-emerald-200 border border-emerald-500/30">${bus.price}</span>` : '';
+                    const availabilityBadges = renderAvailabilityBadges(bus.availability);
+                    const stopsBlock = renderStops(bus.stops);
+
+                    card.innerHTML = `
+                        <div class="flex flex-col gap-4">
+                            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                                <div>
+                                    <div class="flex items-center gap-3">
+                                        <h2 class="text-2xl font-bold text-white">${bus.route || 'Express Service'}</h2>
+                                        ${statusBadge}
+                                        ${index === highlightIndex ? '<span class="inline-flex items-center gap-1 rounded-full bg-indigo-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-100">Next departure</span>' : ''}
+                                    </div>
+                                    <p class="text-sm text-slate-300">${bus.operator || 'Operator not specified'}</p>
                                 </div>
-                                <p class="text-sm text-gray-600">${bus.operator}</p>
+                                <div class="text-right">
+                                    <p class="text-sm uppercase tracking-wide text-slate-400">Departure</p>
+                                    <p class="text-3xl font-bold text-white">${bus.departureTime || 'TBC'}</p>
+                                    ${bus.arrivalTime ? `<p class="mt-1 text-xs text-slate-400">Arrives ${bus.arrivalTime}</p>` : ''}
+                                </div>
                             </div>
-                            <div class="flex-1 text-center font-semibold text-lg my-4 md:my-0">
-                                ${bus.departureTime} &rarr; ${bus.arrivalTime}
+                            <div class="flex flex-wrap items-center gap-3 text-sm text-slate-200">
+                                <span class="inline-flex items-center gap-2 rounded-full bg-slate-800/60 px-3 py-1"><span class="font-semibold text-slate-100">Departs</span> ${bus.departsFrom || '—'}</span>
+                                <span class="inline-flex items-center gap-2 rounded-full bg-slate-800/60 px-3 py-1"><span class="font-semibold text-slate-100">Arrives</span> ${bus.arrivesAt || '—'}</span>
+                                ${bus.expresswayEntrance ? `<span class="inline-flex items-center gap-2 rounded-full bg-slate-800/60 px-3 py-1"><span class="font-semibold text-slate-100">Entrance</span> ${bus.expresswayEntrance}</span>` : ''}
+                                ${bus.expresswayExit ? `<span class="inline-flex items-center gap-2 rounded-full bg-slate-800/60 px-3 py-1"><span class="font-semibold text-slate-100">Exit</span> ${bus.expresswayExit}</span>` : ''}
+                                ${priceTag}
                             </div>
-                            <div class="flex-1 text-right">
-                                <p class="font-bold">${bus.price || 'N/A'}</p>
-                            </div>
-                        </div>
-                        <div class="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-500">
-                            <p><strong>Departs From:</strong> ${bus.departsFrom}</p>
-                            <p><strong>Expressway Entrance:</strong> ${bus.expresswayEntrance || 'N/A'}</p>
-                            <p><strong>Expressway Exit:</strong> ${bus.expresswayExit || 'N/A'}</p>
-                            <p><strong>Arrives At:</strong> ${bus.arrivesAt}</p>
+                            ${availabilityBadges}
+                            ${stopsBlock}
                         </div>
                     `;
-                    searchResults.appendChild(busCard);
+
+                    searchResults.appendChild(card);
                 });
+
+                liveRegion.textContent = `${buses.length} departures found`;
             }
 
-            function getStatusColor(status) {
-                switch (status) {
-                    case 'Departed': return { bg: 'bg-blue-100', text: 'text-blue-800' };
-                    case 'Arrived': return { bg: 'bg-purple-100', text: 'text-purple-800' };
-                    case 'On Time': return { bg: 'bg-green-100', text: 'text-green-800' };
-                    case 'Delayed': return { bg: 'bg-yellow-100', text: 'text-yellow-800' };
-                    case 'Cancelled': return { bg: 'bg-red-100', text: 'text-red-800' };
-                    default: return { bg: 'bg-gray-100', text: 'text-gray-800' };
-                }
-            }
-
-            function displayError(msg) {
-                errorMessage.textContent = msg;
+            function displayError(message) {
+                errorMessage.textContent = message;
                 errorMessage.classList.remove('hidden');
+            }
+
+            function compareTimes(timeA, timeB) {
+                const toMinutes = (time) => {
+                    if (!time) return Number.MAX_SAFE_INTEGER;
+                    const [hours, minutes] = time.split(':').map(Number);
+                    if (Number.isNaN(hours) || Number.isNaN(minutes)) return Number.MAX_SAFE_INTEGER;
+                    return hours * 60 + minutes;
+                };
+                return toMinutes(timeA) - toMinutes(timeB);
+            }
+
+            function findNextDepartureIndex(buses, isoDate) {
+                if (!buses.length) return -1;
+                const todayIso = formatDate(new Date());
+                const currentMinutes = (() => {
+                    const now = new Date();
+                    return now.getHours() * 60 + now.getMinutes();
+                })();
+                if (isoDate !== todayIso) return 0;
+                const index = buses.findIndex(bus => {
+                    const [hours, minutes] = (bus.departureTime || '').split(':').map(Number);
+                    if (Number.isNaN(hours) || Number.isNaN(minutes)) return false;
+                    return hours * 60 + minutes >= currentMinutes;
+                });
+                return index === -1 ? 0 : index;
+            }
+
+            function renderStatusBadge(status) {
+                const config = getStatusConfig(status);
+                return `<span class="inline-flex items-center gap-2 rounded-full border ${config.border} ${config.bg} px-3 py-1 text-xs font-semibold ${config.text}">
+                    <span class="inline-flex h-2 w-2 rounded-full ${config.dot}"></span>
+                    ${config.label}
+                </span>`;
+            }
+
+            function getStatusConfig(status) {
+                const defaultConfig = { label: 'Scheduled', bg: 'bg-slate-800/60', border: 'border-slate-600/60', text: 'text-slate-200', dot: 'bg-slate-300' };
+                const map = {
+                    'Departed': { label: 'Departed', bg: 'bg-emerald-500/15', border: 'border-emerald-400/40', text: 'text-emerald-200', dot: 'bg-emerald-300' },
+                    'Arrived': { label: 'Arrived', bg: 'bg-sky-500/15', border: 'border-sky-400/40', text: 'text-sky-200', dot: 'bg-sky-300' },
+                    'Delayed': { label: 'Delayed', bg: 'bg-amber-500/15', border: 'border-amber-400/40', text: 'text-amber-200', dot: 'bg-amber-300' },
+                    'Cancelled': { label: 'Cancelled', bg: 'bg-rose-500/15', border: 'border-rose-400/40', text: 'text-rose-200', dot: 'bg-rose-300' }
+                };
+                return map[status] || defaultConfig;
+            }
+
+            function renderAvailabilityBadges(days = []) {
+                if (!Array.isArray(days) || !days.length) return '';
+                const items = days.map(day => `<span class="inline-flex items-center gap-2 rounded-full bg-slate-800/60 px-3 py-1 text-xs text-slate-300">${day}</span>`).join('');
+                return `<div class="flex flex-wrap items-center gap-2" aria-label="Operating days">${items}</div>`;
+            }
+
+            function renderStops(stops = []) {
+                if (!Array.isArray(stops) || !stops.length) {
+                    return '';
+                }
+                const preview = stops.slice(0, 3).join(' • ');
+                const remainder = stops.slice(3).map(stop => `<li class="rounded-xl border border-slate-700/70 bg-slate-900/70 px-3 py-1 text-sm text-slate-200">${stop}</li>`).join('');
+                const extraCount = stops.length - 3;
+                if (remainder) {
+                    return `
+                        <details class="group rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-slate-300">
+                            <summary class="flex cursor-pointer list-none items-center justify-between text-slate-200 hover:text-white">
+                                <span class="font-semibold">Stops</span>
+                                <span class="text-xs text-indigo-300 group-open:hidden">+${extraCount} more</span>
+                                <span class="text-xs text-indigo-300 hidden group-open:block">Hide</span>
+                            </summary>
+                            <div class="mt-3 text-sm">${preview}</div>
+                            <ul class="mt-3 grid gap-2 md:grid-cols-2">${remainder}</ul>
+                        </details>`;
+                }
+                return `<div class="rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-slate-300"><span class="font-semibold text-slate-100">Stops:</span> ${preview}</div>`;
+            }
+
+            function formatHumanDate(isoDate) {
+                const date = new Date(`${isoDate}T00:00:00`);
+                if (Number.isNaN(date.getTime())) return isoDate;
+                return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+            }
+
+            function formatDate(date) {
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                return `${yyyy}-${mm}-${dd}`;
             }
         });
     </script>
 </body>
 </html>
-

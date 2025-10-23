@@ -64,6 +64,47 @@
                 <button id="show-bulk-add-modal" class="bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 shadow">Bulk Add by Frequency</button>
             </div>
 
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold">Price Matrix</h2>
+                        <p class="text-sm text-gray-500">Maintain reusable fare presets and departure locations for quick bus creation.</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-gray-500">
+                        <span class="inline-flex items-center justify-center w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                        <span>Updates sync instantly with all admin and timekeeper tools.</span>
+                    </div>
+                </div>
+
+                <form id="price-matrix-form" class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <input list="location-options" type="text" id="price-origin" class="w-full p-2 border rounded" placeholder="Origin (e.g., Makumbura)" required>
+                    <input list="location-options" type="text" id="price-destination" class="w-full p-2 border rounded" placeholder="Destination (e.g., Galle)" required>
+                    <input type="text" id="price-amount" class="w-full p-2 border rounded" placeholder="Price (e.g., 1200 LKR)" required>
+                    <div class="flex gap-2">
+                        <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700">Save</button>
+                        <button type="button" id="price-form-reset" class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50">Clear</button>
+                    </div>
+                    <p id="price-form-message" class="md:col-span-2 lg:col-span-1 text-sm font-medium"></p>
+                    <input type="hidden" id="price-entry-id">
+                </form>
+
+                <div id="price-matrix-empty" class="hidden text-center text-gray-500 py-6">No price entries yet. Add your first fare preset above.</div>
+                <div class="overflow-x-auto mt-4">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Origin</th>
+                                <th class="px-4 py-3 text-left">Destination</th>
+                                <th class="px-4 py-3 text-left">Price</th>
+                                <th class="px-4 py-3 text-left">Last Updated</th>
+                                <th class="px-4 py-3 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="price-matrix-body" class="bg-white divide-y divide-gray-200 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="bg-white p-6 rounded-lg shadow-md">
                 <h2 class="text-2xl font-bold mb-4">Current Bus Timetable</h2>
                 <div id="loading" class="text-center py-10">Loading timetable...</div>
@@ -73,6 +114,8 @@
             </div>
         </main>
     </div>
+
+    <datalist id="location-options"></datalist>
 
     <!-- Add/Edit Modal -->
     <div id="bus-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
@@ -87,8 +130,8 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" placeholder="Route (e.g., EX1/01)" id="route" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Operator" id="operator" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Departs From" id="departsFrom" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Arrives At" id="arrivesAt" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="departsFrom" class="w-full p-2 border rounded" list="location-options" required>
+                    <input type="text" placeholder="Arrives At" id="arrivesAt" class="w-full p-2 border rounded" list="location-options" required>
                     <input type="time" placeholder="Departure Time" id="departureTime" class="w-full p-2 border rounded" required>
                     <input type="time" placeholder="Arrival Time" id="arrivalTime" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Price (e.g., 1200 LKR)" id="price" class="w-full p-2 border rounded">
@@ -125,8 +168,8 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" placeholder="Route (e.g., EX1)" id="bulk-route" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Operator" id="bulk-operator" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Departs From" id="bulk-departsFrom" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Arrives At" id="bulk-arrivesAt" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="bulk-departsFrom" class="w-full p-2 border rounded" list="location-options" required>
+                    <input type="text" placeholder="Arrives At" id="bulk-arrivesAt" class="w-full p-2 border rounded" list="location-options" required>
                     <input type="text" placeholder="Price" id="bulk-price" class="w-full p-2 border rounded">
                     <input type="text" placeholder="Expressway Entrance" id="bulk-expresswayEntrance" class="w-full p-2 border rounded">
                     <input type="text" placeholder="Expressway Exit" id="bulk-expresswayExit" class="w-full p-2 border rounded">
@@ -209,22 +252,95 @@
             const bulkBusForm = document.getElementById('bulk-bus-form');
             const bulkAddMessage = document.getElementById('bulk-add-message');
 
+            const priceForm = document.getElementById('price-matrix-form');
+            const priceOriginInput = document.getElementById('price-origin');
+            const priceDestinationInput = document.getElementById('price-destination');
+            const priceAmountInput = document.getElementById('price-amount');
+            const priceEntryIdInput = document.getElementById('price-entry-id');
+            const priceFormMessage = document.getElementById('price-form-message');
+            const priceFormReset = document.getElementById('price-form-reset');
+            const priceMatrixBody = document.getElementById('price-matrix-body');
+            const priceMatrixEmpty = document.getElementById('price-matrix-empty');
+            const locationOptionsList = document.getElementById('location-options');
+
             const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-            
+
             let currentUser = null;
             let unsubscribe = null;
+            let priceMatrixUnsubscribe = null;
+            let priceAutoFillRegistered = false;
+
+            const priceLookup = new Map();
+            const priceEntryByKey = new Map();
+            const locationSet = new Set();
+
+            function normalizeRole(role) {
+                return (role || '').toString().trim().toLowerCase();
+            }
+
+            async function fetchUserProfile(user) {
+                if (!user) return null;
+                const email = (user.email || '').trim();
+                const emailLower = email.toLowerCase();
+
+                const usersCollection = db.collection('users');
+
+                const tryDoc = async (docId) => {
+                    if (!docId) return null;
+                    const doc = await usersCollection.doc(docId).get();
+                    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+                };
+
+                try {
+                    let profile = await tryDoc(user.uid);
+                    if (profile) return profile;
+
+                    profile = await tryDoc(email);
+                    if (profile) return profile;
+
+                    if (emailLower !== email) {
+                        profile = await tryDoc(emailLower);
+                        if (profile) return profile;
+                    }
+
+                    if (email) {
+                        let snapshot = await usersCollection.where('emailLower', '==', emailLower).limit(1).get();
+                        if (!snapshot.empty) {
+                            const doc = snapshot.docs[0];
+                            return { id: doc.id, ...doc.data() };
+                        }
+
+                        snapshot = await usersCollection.where('email', '==', email).limit(1).get();
+                        if (!snapshot.empty) {
+                            const doc = snapshot.docs[0];
+                            return { id: doc.id, ...doc.data() };
+                        }
+                    }
+
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                    throw error;
+                }
+            }
 
             // --- AUTHENTICATION & ACCESS CONTROL ---
             auth.onAuthStateChanged(async (user) => {
                 if (user) {
-                    const userDoc = await db.collection('users').doc(user.uid).get();
-                    if (userDoc.exists && userDoc.data().role === 'admin') {
-                        currentUser = user;
-                        loginScreen.classList.add('hidden');
-                        dashboard.classList.remove('hidden');
-                        loadBuses();
-                    } else {
-                        alert('Access Denied. You must be an administrator to view this page.');
+                    try {
+                        const profile = await fetchUserProfile(user);
+                        if (profile && normalizeRole(profile.role) === 'admin') {
+                            currentUser = user;
+                            loginScreen.classList.add('hidden');
+                            dashboard.classList.remove('hidden');
+                            loadBuses();
+                            startPriceMatrixListener();
+                        } else {
+                            alert('Access Denied. You must be an administrator to view this page.');
+                            auth.signOut();
+                        }
+                    } catch (error) {
+                        alert('Unable to verify your permissions. Please try again or contact support.');
                         auth.signOut();
                     }
                 } else {
@@ -232,6 +348,8 @@
                     loginScreen.classList.remove('hidden');
                     dashboard.classList.add('hidden');
                     if (unsubscribe) unsubscribe();
+                    if (priceMatrixUnsubscribe) priceMatrixUnsubscribe();
+                    clearPriceMatrixState();
                 }
             });
 
@@ -246,8 +364,201 @@
             });
 
             logoutButton.addEventListener('click', () => auth.signOut());
-            
+
             // --- DATA HANDLING ---
+            function clearPriceMatrixState() {
+                priceLookup.clear();
+                locationSet.clear();
+                updateLocationOptions();
+                renderPriceMatrix([]);
+                priceFormMessage.textContent = '';
+                priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium';
+                priceEntryIdInput.value = '';
+                priceAutoFillRegistered = false;
+            }
+
+            function startPriceMatrixListener() {
+                if (priceMatrixUnsubscribe) priceMatrixUnsubscribe();
+                priceMatrixUnsubscribe = db.collection('priceMatrix').orderBy('origin').onSnapshot(snapshot => {
+                    const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    refreshPriceMatrix(entries);
+                }, error => {
+                    console.error('Error loading price matrix:', error);
+                    priceFormMessage.textContent = 'Unable to load price matrix. Check console logs.';
+                    priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-red-600';
+                });
+            }
+
+            function refreshPriceMatrix(entries) {
+                priceLookup.clear();
+                priceEntryByKey.clear();
+                locationSet.clear();
+                entries.forEach(entry => {
+                    const origin = (entry.origin || '').trim();
+                    const destination = (entry.destination || '').trim();
+                    if (!origin || !destination) return;
+                    locationSet.add(origin);
+                    locationSet.add(destination);
+                    const key = `${origin.toLowerCase()}__${destination.toLowerCase()}`;
+                    priceLookup.set(key, entry.price || '');
+                    priceEntryByKey.set(key, entry.id);
+                });
+                updateLocationOptions();
+                renderPriceMatrix(entries);
+                autoFillPriceFields();
+            }
+
+            function updateLocationOptions() {
+                if (!locationOptionsList) return;
+                locationOptionsList.innerHTML = '';
+                Array.from(locationSet).sort((a, b) => a.localeCompare(b)).forEach(location => {
+                    const option = document.createElement('option');
+                    option.value = location;
+                    locationOptionsList.appendChild(option);
+                });
+            }
+
+            function renderPriceMatrix(entries) {
+                priceMatrixBody.innerHTML = '';
+                if (!entries.length) {
+                    priceMatrixEmpty.classList.remove('hidden');
+                    return;
+                }
+                priceMatrixEmpty.classList.add('hidden');
+                entries.forEach(entry => {
+                    const tr = document.createElement('tr');
+                    tr.dataset.id = entry.id;
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-800">${entry.origin}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-700">${entry.destination}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-indigo-600 font-semibold">${entry.price || '—'}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">${entry.updatedAt ? new Date(entry.updatedAt.seconds ? entry.updatedAt.seconds * 1000 : entry.updatedAt).toLocaleString() : '—'}</td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <button class="text-indigo-600 hover:text-indigo-900 price-edit" data-id="${entry.id}">Edit</button>
+                            <button class="text-red-600 hover:text-red-900 price-delete ml-4" data-id="${entry.id}">Delete</button>
+                        </td>`;
+                    priceMatrixBody.appendChild(tr);
+                });
+            }
+
+            function autoFillPriceFields() {
+                if (priceAutoFillRegistered) return;
+                const pricePairs = [
+                    {
+                        origin: document.getElementById('departsFrom'),
+                        destination: document.getElementById('arrivesAt'),
+                        price: document.getElementById('price')
+                    },
+                    {
+                        origin: document.getElementById('bulk-departsFrom'),
+                        destination: document.getElementById('bulk-arrivesAt'),
+                        price: document.getElementById('bulk-price')
+                    }
+                ].filter(pair => pair.origin && pair.destination && pair.price);
+
+                pricePairs.forEach(pair => {
+                    if (!pair.price.dataset) pair.price.dataset = {};
+                    pair.price.addEventListener('input', () => {
+                        pair.price.dataset.autofilled = 'false';
+                    });
+                    ['change', 'blur'].forEach(evt => {
+                        pair.origin.addEventListener(evt, () => maybeFillPrice(pair));
+                        pair.destination.addEventListener(evt, () => maybeFillPrice(pair));
+                    });
+                });
+                priceAutoFillRegistered = true;
+            }
+
+            function maybeFillPrice({ origin, destination, price }) {
+                const originVal = origin.value.trim();
+                const destinationVal = destination.value.trim();
+                if (!originVal || !destinationVal) return;
+                const key = `${originVal.toLowerCase()}__${destinationVal.toLowerCase()}`;
+                if (!priceLookup.has(key)) return;
+                if (!price.value.trim() || price.dataset.autofilled === 'true') {
+                    price.value = priceLookup.get(key);
+                    price.dataset.autofilled = 'true';
+                }
+            }
+
+            if (priceForm) {
+                priceForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const origin = priceOriginInput.value.trim();
+                    const destination = priceDestinationInput.value.trim();
+                    const priceValue = priceAmountInput.value.trim();
+
+                    if (!origin || !destination || !priceValue) {
+                        priceFormMessage.textContent = 'Please complete all fields.';
+                        priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-red-600';
+                        return;
+                    }
+
+                    const payload = {
+                        origin,
+                        destination,
+                        price: priceValue,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedBy: currentUser ? currentUser.uid : null
+                    };
+
+                    try {
+                        if (priceEntryIdInput.value) {
+                            await db.collection('priceMatrix').doc(priceEntryIdInput.value).set(payload, { merge: true });
+                            priceFormMessage.textContent = 'Price entry updated.';
+                        } else {
+                            const key = `${origin.toLowerCase()}__${destination.toLowerCase()}`;
+                            const existingId = priceEntryByKey.get(key);
+                            if (existingId) {
+                                await db.collection('priceMatrix').doc(existingId).set(payload, { merge: true });
+                                priceFormMessage.textContent = 'Existing price updated.';
+                            } else {
+                                await db.collection('priceMatrix').add(payload);
+                                priceFormMessage.textContent = 'Price entry saved.';
+                            }
+                        }
+                        priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-green-600';
+                        priceForm.reset();
+                        priceEntryIdInput.value = '';
+                        priceAmountInput.dataset.autofilled = 'false';
+                    } catch (error) {
+                        console.error('Error saving price entry:', error);
+                        priceFormMessage.textContent = 'Failed to save price entry. Try again.';
+                        priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-red-600';
+                    }
+                });
+
+                priceFormReset.addEventListener('click', () => {
+                    priceForm.reset();
+                    priceEntryIdInput.value = '';
+                    priceFormMessage.textContent = '';
+                    priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium';
+                });
+
+                priceMatrixBody.addEventListener('click', async (event) => {
+                    const rowId = event.target.dataset.id;
+                    if (!rowId) return;
+
+                    if (event.target.classList.contains('price-edit')) {
+                        const doc = await db.collection('priceMatrix').doc(rowId).get();
+                        if (!doc.exists) return;
+                        const data = doc.data();
+                        priceOriginInput.value = data.origin || '';
+                        priceDestinationInput.value = data.destination || '';
+                        priceAmountInput.value = data.price || '';
+                        priceEntryIdInput.value = rowId;
+                        priceFormMessage.textContent = 'Editing existing entry. Save to update or Clear to cancel.';
+                        priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-indigo-600';
+                    }
+
+                    if (event.target.classList.contains('price-delete')) {
+                        if (confirm('Delete this price entry?')) {
+                            await db.collection('priceMatrix').doc(rowId).delete();
+                        }
+                    }
+                });
+            }
+
             function loadBuses() {
                 if (unsubscribe) unsubscribe(); // Detach previous listener
                 unsubscribe = db.collection('buses').orderBy('sortOrder').onSnapshot(snapshot => {
