@@ -5,11 +5,15 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "firebase emulators:start"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "devDependencies": {
+    "firebase-tools": "^12.7.1"
+  },
   "dependencies": {
     "better-sqlite3": "^12.4.1",
     "cors": "^2.8.5",
