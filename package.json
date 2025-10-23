@@ -11,6 +11,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "devDependencies": {
+    "firebase-tools": "^12.7.1"
+  },
   "dependencies": {
     "better-sqlite3": "^12.4.1",
     "cors": "^2.8.5",

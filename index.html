@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sri Lanka Expressway Bus Timetable Search</title>
+    <title>Sri Lanka Expressway Bus Timetable</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -42,7 +42,28 @@
             </form>
         </div>
 
-        <div id="error-message" class="hidden bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg relative mb-6" role="alert"></div>
+            <main class="max-w-5xl mx-auto px-6 pb-16">
+                <section class="glass-panel rounded-3xl p-6 md:p-8 shadow-2xl">
+                    <form id="search-form" class="grid grid-cols-1 md:grid-cols-[repeat(4,minmax(0,1fr))] gap-4 items-end" autocomplete="off">
+                        <div class="relative">
+                            <label for="from" class="block text-xs font-semibold uppercase tracking-wide text-indigo-200">From</label>
+                            <input type="text" id="from" name="from" placeholder="e.g. Makumbura" class="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/60" aria-autocomplete="list" aria-controls="from-suggestions" aria-expanded="false">
+                            <div id="from-suggestions" class="suggestions-panel absolute z-20 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/95 text-left" role="listbox"></div>
+                        </div>
+                        <div class="relative">
+                            <label for="to" class="block text-xs font-semibold uppercase tracking-wide text-indigo-200">To</label>
+                            <input type="text" id="to" name="to" placeholder="e.g. Galle" class="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/60" aria-autocomplete="list" aria-controls="to-suggestions" aria-expanded="false">
+                            <div id="to-suggestions" class="suggestions-panel absolute z-20 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/95 text-left" role="listbox"></div>
+                        </div>
+                        <div>
+                            <label for="date" class="block text-xs font-semibold uppercase tracking-wide text-indigo-200">Date</label>
+                            <input type="date" id="date" name="date" class="mt-2 w-full rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/60">
+                        </div>
+                        <div>
+                            <button type="submit" id="search-button" class="mt-6 w-full rounded-xl bg-gradient-to-r from-indigo-500 via-blue-500 to-cyan-500 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-indigo-500/20 transition hover:shadow-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-400 focus:ring-offset-slate-950">Search departures</button>
+                        </div>
+                    </form>
+                </section>
 
         <div id="search-meta" class="hidden bg-white border border-gray-200 rounded-lg p-4 shadow-sm mb-6"></div>
 
@@ -56,7 +77,9 @@
             const searchForm = document.getElementById('search-form');
             const searchButton = document.getElementById('search-button');
             const searchResults = document.getElementById('search-results');
+            const resultsSummary = document.getElementById('results-summary');
             const errorMessage = document.getElementById('error-message');
+            const liveRegion = document.getElementById('live-region');
             const fromInput = document.getElementById('from');
             const toInput = document.getElementById('to');
             const swapButton = document.getElementById('swap-button');
@@ -89,9 +112,10 @@
 
             const handleAutocomplete = (input, suggestionsContainer) => {
                 const query = input.value.toLowerCase().trim();
-                suggestionsContainer.innerHTML = '';
+                container.innerHTML = '';
                 if (!query) {
-                    suggestionsContainer.classList.add('hidden');
+                    container.classList.add('hidden');
+                    input.setAttribute('aria-expanded', 'false');
                     return;
                 }
                 const filtered = [...allLocations]
@@ -258,6 +282,13 @@
                         </div>`;
                     searchResults.appendChild(card);
                 });
+
+                liveRegion.textContent = `${buses.length} departures found`;
+            }
+
+            function displayError(message) {
+                errorMessage.textContent = message;
+                errorMessage.classList.remove('hidden');
             }
 
             function displayError(message) {
