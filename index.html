@@ -67,8 +67,18 @@
 
         <div id="search-meta" class="hidden bg-white border border-gray-200 rounded-lg p-4 shadow-sm mb-6"></div>
 
-        <div id="search-results" class="space-y-4">
-            <!-- Search results will be appended here -->
+                <section id="config-warning" class="mt-6 hidden rounded-2xl border border-red-400/50 bg-red-900/40 px-6 py-4 text-red-100" role="alert">
+                    <p class="font-semibold">Configuration missing</p>
+                    <p class="text-sm text-red-200">Firebase configuration was not detected. Please paste your project credentials into this file.</p>
+                </section>
+
+                <section id="error-message" class="mt-6 hidden rounded-2xl border border-amber-300/40 bg-amber-900/40 px-6 py-4 text-amber-100" role="alert"></section>
+
+                <div id="results-summary" class="mt-8 hidden text-sm text-slate-300"></div>
+
+                <div id="search-results" class="mt-6 space-y-6" aria-live="polite" aria-busy="false"></div>
+                <div id="live-region" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+            </main>
         </div>
     </div>
 

@@ -101,6 +101,47 @@
                 </div>
             </div>
 
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold">Price Matrix</h2>
+                        <p class="text-sm text-gray-500">Maintain reusable fare presets and departure locations for quick bus creation.</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-gray-500">
+                        <span class="inline-flex items-center justify-center w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                        <span>Updates sync instantly with all admin and timekeeper tools.</span>
+                    </div>
+                </div>
+
+                <form id="price-matrix-form" class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <input list="location-options" type="text" id="price-origin" class="w-full p-2 border rounded" placeholder="Origin (e.g., Makumbura)" required>
+                    <input list="location-options" type="text" id="price-destination" class="w-full p-2 border rounded" placeholder="Destination (e.g., Galle)" required>
+                    <input type="text" id="price-amount" class="w-full p-2 border rounded" placeholder="Price (e.g., 1200 LKR)" required>
+                    <div class="flex gap-2">
+                        <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700">Save</button>
+                        <button type="button" id="price-form-reset" class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50">Clear</button>
+                    </div>
+                    <p id="price-form-message" class="md:col-span-2 lg:col-span-1 text-sm font-medium"></p>
+                    <input type="hidden" id="price-entry-id">
+                </form>
+
+                <div id="price-matrix-empty" class="hidden text-center text-gray-500 py-6">No price entries yet. Add your first fare preset above.</div>
+                <div class="overflow-x-auto mt-4">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Origin</th>
+                                <th class="px-4 py-3 text-left">Destination</th>
+                                <th class="px-4 py-3 text-left">Price</th>
+                                <th class="px-4 py-3 text-left">Last Updated</th>
+                                <th class="px-4 py-3 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="price-matrix-body" class="bg-white divide-y divide-gray-200 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="bg-white p-6 rounded-lg shadow-md">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-semibold">Timetable</h3>
