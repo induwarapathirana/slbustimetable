@@ -6,8 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "dev": "firebase emulators:start",
-    "build": "echo \"Static site - no build step\""
+    "build": "node -e \"console.log('No build step required')\""
   },
   "keywords": [],
   "author": "",
@@ -18,9 +17,6 @@
   "dependencies": {
     "better-sqlite3": "^12.4.1",
     "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "firebase": "^12.4.0",
-    "firebase-admin": "^13.5.0",
-    "sqlite3": "^5.1.7"
+    "express": "^5.1.0"
   }
 }
