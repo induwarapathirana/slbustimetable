@@ -500,15 +500,27 @@ app.get('/api/timekeeper/schedule/today', authenticate, requireRole('admin', 'ti
   if (!depot) {
     return res.status(400).json({ message: 'Depot is required' });
   }
-  const today = new Date().toLocaleString('en-US', { weekday: 'long' });
+
+  const isoDate = (req.query.date || '').trim();
+  let targetDate = new Date();
+  if (isoDate) {
+    const parsed = new Date(`${isoDate}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return res.status(400).json({ message: 'Invalid date format. Use YYYY-MM-DD.' });
+    }
+    targetDate = parsed;
+  }
+
+  const weekday = targetDate.toLocaleString('en-US', { weekday: 'long' });
+
   try {
     const stmt = db.prepare(
       `SELECT * FROM buses WHERE LOWER(departsFrom) = LOWER(?) AND (availability = '[]' OR availability LIKE '%' || ? || '%')
        ORDER BY departureTime ASC`
     );
-    const rows = stmt.all(depot, today).map(mapBusRow);
-    const filtered = rows.filter((bus) => !bus.availability.length || bus.availability.includes(today));
-    res.json({ depot, day: today, buses: filtered });
+    const rows = stmt.all(depot, weekday).map(mapBusRow);
+    const filtered = rows.filter((bus) => !bus.availability.length || bus.availability.includes(weekday));
+    res.json({ depot, day: weekday, date: isoDate || targetDate.toISOString().split('T')[0], buses: filtered });
   } catch (err) {
     res.status(500).json({ message: 'Unable to load schedule.' });
   }
