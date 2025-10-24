@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - User Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -22,11 +19,11 @@
             <form id="login-form">
                 <div class="mb-4">
                     <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="email" id="email" autocomplete="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div class="mb-6">
                     <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                    <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="password" id="password" autocomplete="current-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Login</button>
             </form>
@@ -101,8 +98,24 @@
         </main>
     </div>
 
-    <script>
+    <script type="module">
+        import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import {
+            getFirestore,
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            limit,
+            query,
+            where
+        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
         // This is the correct format. Just paste your values here.
+        // --- Firebase bootstrap -------------------------------------------------
+        // Paste your Firebase project configuration here. Keeping the same keys
+        // ensures the user provisioning helpers keep working without edits.
         const firebaseConfig = {
             apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
             authDomain: "sl-bus-timetable-app.firebaseapp.com",
@@ -120,9 +133,11 @@
                 return;
             }
 
-            const app = firebase.initializeApp(firebaseConfig);
-            const auth = firebase.auth();
-            const db = firebase.firestore();
+            // Re-use an existing Firebase app if another dashboard initialised it;
+            // otherwise create a fresh instance for the user management console.
+            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
 
             // DOM Elements
             const loginScreen = document.getElementById('login-screen');
@@ -139,18 +154,151 @@
 
             let currentUser = null;
 
+            function normalizeRole(role) {
+                const value = (role || '').toString().trim().toLowerCase();
+                if (value === 'administrator') return 'admin';
+                if (value === 'timekeepers') return 'timekeeper';
+                return value;
+            }
+
+            function extractRoleFromClaims(claims, allowedRoles) {
+                if (!claims) return '';
+                const sources = [
+                    claims.role,
+                    claims.userRole,
+                    claims.customRole,
+                    ...(Array.isArray(claims.roles) ? claims.roles : []),
+                    ...(Array.isArray(claims.permissions) ? claims.permissions : [])
+                ];
+                for (const entry of sources) {
+                    const normalized = normalizeRole(entry);
+                    if (!normalized) continue;
+                    if (!allowedRoles.length || allowedRoles.includes(normalized)) {
+                        return normalized;
+                    }
+                }
+                return '';
+            }
+
+            async function maybeBackfillEmailLower(usersCollection, profile, emailLower) {
+                if (!profile || !profile.id || !emailLower) return profile;
+                if ((profile.emailLower || '').toString().toLowerCase() === emailLower) {
+                    return profile;
+                }
+                try {
+                    await setDoc(doc(usersCollection, profile.id), { emailLower }, { merge: true });
+                    profile.emailLower = emailLower;
+                } catch (error) {
+                    console.warn('Unable to backfill lowercase email for user profile:', error);
+                }
+                return profile;
+            }
+
+            async function ensureProfileFromClaims(user, role) {
+                if (!user) return;
+                const usersCollection = collection(db, 'users');
+                const email = (user.email || '').trim();
+                const payload = {
+                    role,
+                    email,
+                    emailLower: email.toLowerCase(),
+                    displayName: user.displayName || '',
+                    syncedFromClaims: true,
+                    updatedAt: serverTimestamp()
+                };
+                try {
+                    await setDoc(doc(usersCollection, user.uid), payload, { merge: true });
+                } catch (error) {
+                    console.warn('Unable to seed Firestore profile from custom claims:', error);
+                }
+            }
+
+            async function resolveRole(user, allowedRoles) {
+                const profile = await fetchUserProfile(user);
+                const profileRole = normalizeRole(profile?.role);
+                if (profileRole && (!allowedRoles.length || allowedRoles.includes(profileRole))) {
+                    return { role: profileRole, profile };
+                }
+
+                try {
+                    const token = await user.getIdTokenResult(true);
+                    const claimRole = extractRoleFromClaims(token?.claims, allowedRoles);
+                    if (claimRole) {
+                        await ensureProfileFromClaims(user, claimRole);
+                        const refreshedProfile = profile || await fetchUserProfile(user);
+                        return { role: claimRole, profile: refreshedProfile || profile };
+                    }
+                } catch (error) {
+                    console.warn('Unable to resolve role from custom claims:', error);
+                }
+
+                return { role: profileRole || null, profile };
+            }
+
+            async function fetchUserProfile(user) {
+                if (!user) return null;
+                const email = (user.email || '').trim();
+                const emailLower = email.toLowerCase();
+
+                const usersCollection = collection(db, 'users');
+
+                const tryDoc = async (docId) => {
+                    if (!docId) return null;
+                    const docRef = doc(usersCollection, docId);
+                    const docSnap = await getDoc(docRef);
+                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                };
+
+                try {
+                    let profile = await tryDoc(user.uid);
+                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
+
+                    profile = await tryDoc(email);
+                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
+
+                    if (emailLower !== email) {
+                        profile = await tryDoc(emailLower);
+                        if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
+                    }
+
+                    if (email) {
+                        let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
+                        }
+
+                        snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
+                        }
+                    }
+
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                    throw error;
+                }
+            }
+
             // --- AUTHENTICATION & ACCESS CONTROL ---
             auth.onAuthStateChanged(async (user) => {
                 if (user) {
-                    const userDoc = await db.collection('users').doc(user.uid).get();
-                    if (userDoc.exists && userDoc.data().role === 'admin') {
-                        currentUser = user;
-                        loginScreen.classList.add('hidden');
-                        dashboard.classList.remove('hidden');
-                        loadUsers();
-                    } else {
-                        alert('Access Denied. You must be an administrator to view this page.');
-                        auth.signOut();
+                    try {
+                        const { role } = await resolveRole(user, ['admin']);
+                        if (role === 'admin') {
+                            currentUser = user;
+                            loginScreen.classList.add('hidden');
+                            dashboard.classList.remove('hidden');
+                            loadUsers();
+                        } else {
+                            alert('Access Denied. You must be an administrator to view this page.');
+                            await auth.signOut();
+                        }
+                    } catch (error) {
+                        alert('Unable to verify your permissions. Please try again later.');
+                        await auth.signOut();
                     }
                 } else {
                     currentUser = null;
@@ -183,15 +331,18 @@
                 userTable.classList.add('hidden');
                 
                 try {
-                    const snapshot = await db.collection('users').get();
+                    const snapshot = await getDocs(collection(db, 'users'));
                     userTableBody.innerHTML = '';
                     snapshot.forEach(doc => {
                         const user = doc.data();
+                        const displayEmail = (user.email || user.username || user.name || doc.id || '').toString();
+                        const displayRole = (user.role || user.userRole || '—').toString();
+                        const displayDepot = (user.depot || user.depotName || user.location || 'N/A').toString();
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap">${user.email}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${user.role}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${user.depot || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayEmail}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayRole}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayDepot}</td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <button class="text-red-600 hover:text-red-900 delete-user-btn" data-uid="${doc.id}">Delete</button>
                             </td>
