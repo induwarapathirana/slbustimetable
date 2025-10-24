@@ -353,10 +353,11 @@
                 const credential = await signInWithEmailAndPassword(auth, email, password);
                 await ensureAdminAccess(credential.user);
 
-                const response = await fetch('/api/login', {
+                const idToken = await credential.user.getIdToken();
+                const response = await fetch('/api/firebase-login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ idToken })
                 });
 
                 const data = await response.json().catch(() => ({}));
