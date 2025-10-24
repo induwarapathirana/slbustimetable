@@ -12,6 +12,10 @@
 </head>
 <body class="bg-gray-100 text-gray-800">
 
+    <div id="config-warning" class="hidden bg-yellow-100 border border-yellow-200 text-yellow-900 px-4 py-3 text-sm text-center">
+        Firebase configuration is missing. Update <code>firebaseConfig</code> before using the user management console.
+    </div>
+
     <div id="login-screen" class="min-h-screen flex items-center justify-center">
         <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
             <h2 class="text-2xl font-bold text-center mb-6">Admin Login</h2>
@@ -92,275 +96,423 @@
     </div>
 
     <script type="module">
-    const TOKEN_KEY = 'slbustimetable:token';
-    const state = {
-        token: localStorage.getItem(TOKEN_KEY) || null,
-        currentUser: null,
-        users: []
+    import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+    import { getFirestore, collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyArXmYmU6l4t_xaNquhT0JUH4sG2ge3tZo",
+        authDomain: "bustimetable-v2.firebaseapp.com",
+        projectId: "bustimetable-v2",
+        storageBucket: "bustimetable-v2.firebasestorage.app",
+        messagingSenderId: "665985152111",
+        appId: "1:665985152111:web:291020ebb619374c4f899a",
+        measurementId: "G-0EEKT7RR6R"
     };
 
-    const loginScreen = document.getElementById('login-screen');
-    const dashboard = document.getElementById('dashboard');
-    const loginForm = document.getElementById('login-form');
-    const logoutButton = document.getElementById('logout-button');
-    const loginError = document.getElementById('login-error');
+    const configWarning = document.getElementById('config-warning');
+    if (!firebaseConfig.apiKey) {
+        configWarning?.classList.remove('hidden');
+        console.warn('Firebase configuration is missing. User management halted.');
+    } else {
+        initUserManagement();
+    }
 
-    const addUserForm = document.getElementById('add-user-form');
-    const addUserMessage = document.getElementById('add-user-message');
-    const newRoleSelect = document.getElementById('new-role');
-    const newDepotInput = document.getElementById('new-depot');
-    const depotFieldContainer = document.getElementById('depot-field-container');
+    function initUserManagement() {
+        const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-    const userTable = document.getElementById('user-table');
-    const userTableBody = document.getElementById('user-table-body');
-    const userListLoading = document.getElementById('user-list-loading');
+        const TOKEN_KEY = 'slbustimetable:token';
+        const state = {
+            token: localStorage.getItem(TOKEN_KEY) || null,
+            currentUser: null,
+            users: []
+        };
 
-    function setToken(token) {
-        state.token = token;
-        if (token) {
-            localStorage.setItem(TOKEN_KEY, token);
-        } else {
-            localStorage.removeItem(TOKEN_KEY);
+        const loginScreen = document.getElementById('login-screen');
+        const dashboard = document.getElementById('dashboard');
+        const loginForm = document.getElementById('login-form');
+        const logoutButton = document.getElementById('logout-button');
+        const loginError = document.getElementById('login-error');
+
+        const addUserForm = document.getElementById('add-user-form');
+        const addUserMessage = document.getElementById('add-user-message');
+        const newRoleSelect = document.getElementById('new-role');
+        const newDepotInput = document.getElementById('new-depot');
+        const depotFieldContainer = document.getElementById('depot-field-container');
+
+        const userTable = document.getElementById('user-table');
+        const userTableBody = document.getElementById('user-table-body');
+        const userListLoading = document.getElementById('user-list-loading');
+
+        function setToken(token) {
+            state.token = token;
+            if (token) {
+                localStorage.setItem(TOKEN_KEY, token);
+            } else {
+                localStorage.removeItem(TOKEN_KEY);
+            }
         }
-    }
 
-    function setCurrentUser(user) {
-        state.currentUser = user || null;
-    }
-
-    function showDashboard() {
-        loginScreen.classList.add('hidden');
-        dashboard.classList.remove('hidden');
-    }
-
-    function showLogin(message = '') {
-        loginScreen.classList.remove('hidden');
-        dashboard.classList.add('hidden');
-        if (message) {
-            loginError.textContent = message;
+        function setCurrentUser(user) {
+            state.currentUser = user || null;
         }
-    }
 
-    async function fetchWithAuth(url, options = {}) {
-        const headers = new Headers(options.headers || {});
-        headers.set('Content-Type', 'application/json');
-        if (state.token) {
-            headers.set('Authorization', `Bearer ${state.token}`);
+        function showDashboard() {
+            loginScreen.classList.add('hidden');
+            dashboard.classList.remove('hidden');
         }
-        const response = await fetch(url, { ...options, headers });
-        if (response.status === 401) {
+
+        function showLogin(message = '') {
+            loginScreen.classList.remove('hidden');
+            dashboard.classList.add('hidden');
+            if (message !== undefined) {
+                loginError.textContent = message;
+            }
+        }
+
+        function renderUsers() {
+            userTableBody.innerHTML = '';
+            if (!state.users.length) {
+                userTable.classList.add('hidden');
+                userListLoading.textContent = 'No users found.';
+                userListLoading.style.display = 'block';
+                return;
+            }
+
+            userListLoading.style.display = 'none';
+            userTable.classList.remove('hidden');
+
+            state.users.forEach((user) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${user.email}</td>
+                    <td class="px-6 py-4 whitespace-nowrap capitalize">${user.role}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${user.depot || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <button class="text-red-600 hover:text-red-900 delete-user-btn" data-id="${user.id}">Delete</button>
+                    </td>
+                `;
+                userTableBody.appendChild(row);
+            });
+        }
+
+        function clearSession() {
             setToken(null);
             setCurrentUser(null);
-            showLogin('Your session has expired. Please sign in again.');
-            throw new Error('Unauthorized');
-        }
-        return response;
-    }
-
-    function renderUsers() {
-        userTableBody.innerHTML = '';
-        if (!state.users.length) {
-            userTable.classList.add('hidden');
-            userListLoading.textContent = 'No users found.';
-            userListLoading.style.display = 'block';
-            return;
-        }
-
-        userListLoading.style.display = 'none';
-        userTable.classList.remove('hidden');
-
-        state.users.forEach((user) => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td class="px-6 py-4 whitespace-nowrap">${user.email}</td>
-                <td class="px-6 py-4 whitespace-nowrap capitalize">${user.role}</td>
-                <td class="px-6 py-4 whitespace-nowrap">${user.depot || 'N/A'}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-right">
-                    <button class="text-red-600 hover:text-red-900 delete-user-btn" data-id="${user.id}">Delete</button>
-                </td>
-            `;
-            userTableBody.appendChild(row);
-        });
-    }
-
-    async function loadUsers() {
-        userListLoading.textContent = 'Loading users...';
-        userListLoading.style.display = 'block';
-        userTable.classList.add('hidden');
-
-        try {
-            const response = await fetchWithAuth('/api/users');
-            if (!response.ok) {
-                throw new Error('Failed to load users.');
-            }
-            state.users = await response.json();
+            state.users = [];
             renderUsers();
-        } catch (error) {
-            console.error('Error loading users:', error);
-            userListLoading.textContent = 'Failed to load users.';
+        }
+
+        async function handleUnauthorized(message = 'Your session has expired. Please sign in again.') {
+            clearSession();
+            showLogin(message);
+            if (auth.currentUser) {
+                try {
+                    await signOut(auth);
+                } catch (error) {
+                    console.warn('Failed to sign out after unauthorized response:', error);
+                }
+            }
+        }
+
+        async function fetchWithAuth(url, options = {}) {
+            const headers = new Headers(options.headers || {});
+            headers.set('Content-Type', 'application/json');
+            if (state.token) {
+                headers.set('Authorization', `Bearer ${state.token}`);
+            }
+            const response = await fetch(url, { ...options, headers });
+            if (response.status === 401) {
+                await handleUnauthorized();
+            }
+            return response;
         }
     }
 
-    function toggleDepotField() {
-        const showDepot = newRoleSelect.value === 'timekeeper';
-        depotFieldContainer.style.display = showDepot ? 'block' : 'none';
-        newDepotInput.required = showDepot;
-        if (!showDepot) {
-            newDepotInput.value = '';
+        async function loadUsers() {
+            userListLoading.textContent = 'Loading users...';
+            userListLoading.style.display = 'block';
+            userTable.classList.add('hidden');
+
+            try {
+                const response = await fetchWithAuth('/api/users');
+                if (!response.ok) {
+                    throw new Error('Failed to load users.');
+                }
+                state.users = await response.json();
+                renderUsers();
+            } catch (error) {
+                console.error('Error loading users:', error);
+                userListLoading.textContent = 'Failed to load users.';
+            }
         }
-    }
 
-    async function handleLogin(event) {
-        event.preventDefault();
-        loginError.textContent = '';
+        function toggleDepotField() {
+            const showDepot = newRoleSelect.value === 'timekeeper';
+            depotFieldContainer.style.display = showDepot ? 'block' : 'none';
+            newDepotInput.required = showDepot;
+            if (!showDepot) {
+                newDepotInput.value = '';
+            }
+        }
 
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
+        async function findAdminProfile(user) {
+            if (!user) return null;
+            const email = (user.email || '').trim();
+            const emailLower = email.toLowerCase();
+            const usersCollection = collection(db, 'users');
 
-        try {
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
+            const docCandidates = [
+                doc(usersCollection, user.uid),
+                doc(usersCollection, emailLower),
+                doc(usersCollection, email)
+            ];
 
-            const data = await response.json().catch(() => ({}));
-
-            if (!response.ok) {
-                throw new Error(data.message || 'Unable to sign in.');
+            for (const candidate of docCandidates) {
+                if (!candidate.id) continue;
+                try {
+                    const snapshot = await getDoc(candidate);
+                    if (snapshot.exists()) {
+                        return { id: snapshot.id, ...snapshot.data() };
+                    }
+                } catch (error) {
+                    console.warn('Failed to read user profile candidate:', error);
+                }
             }
 
-            if (data.user?.role !== 'admin') {
+            try {
+                const byLower = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
+                if (!byLower.empty) {
+                    const match = byLower.docs[0];
+                    return { id: match.id, ...match.data() };
+                }
+            } catch (error) {
+                console.warn('Unable to query profile by lowercase email:', error);
+            }
+
+            try {
+                const byEmail = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
+                if (!byEmail.empty) {
+                    const match = byEmail.docs[0];
+                    return { id: match.id, ...match.data() };
+                }
+            } catch (error) {
+                console.warn('Unable to query profile by email:', error);
+            }
+
+            return null;
+        }
+
+        async function ensureAdminAccess(user) {
+            const profile = await findAdminProfile(user);
+            const role = (profile?.role || '').toString().toLowerCase();
+            if (role !== 'admin') {
                 throw new Error('You must be an administrator to access this page.');
             }
 
-            setToken(data.token);
-            setCurrentUser(data.user);
-            showDashboard();
-            await loadUsers();
-            loginForm.reset();
-        } catch (error) {
-            console.error('Login failed:', error);
-            setToken(null);
-            setCurrentUser(null);
-            loginError.textContent = error.message;
+            const emailLower = (user.email || '').trim().toLowerCase();
+            if (profile && profile.id) {
+                try {
+                    await setDoc(doc(collection(db, 'users'), profile.id), {
+                        email: user.email || profile.email || '',
+                        emailLower,
+                        role: 'admin',
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                } catch (error) {
+                    console.warn('Unable to synchronize admin profile metadata:', error);
+                }
+            }
+
+            return profile;
         }
-    }
 
-    function handleLogout() {
-        setToken(null);
-        setCurrentUser(null);
-        state.users = [];
-        renderUsers();
-        showLogin();
-    }
-
-    async function handleAddUser(event) {
-        event.preventDefault();
-        addUserMessage.textContent = '';
-        addUserMessage.className = 'text-sm mt-4';
-
-        const email = document.getElementById('new-email').value.trim();
-        const password = document.getElementById('new-password').value;
-        const role = newRoleSelect.value;
-        const depot = newDepotInput.value.trim();
-
-        const payload = {
-            email,
-            password,
-            role,
-            depot: role === 'timekeeper' ? depot : null
-        };
-
-        try {
-            const response = await fetchWithAuth('/api/users', {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-
-            const data = await response.json().catch(() => ({}));
-
+        async function verifyServerSession() {
+            const response = await fetchWithAuth('/api/me');
             if (!response.ok) {
-                const errors = data.errors ? data.errors.join(', ') : data.message;
-                throw new Error(errors || 'Failed to create user.');
+                throw new Error('Unable to verify current user.');
             }
+            const user = await response.json();
+            if (user.role !== 'admin') {
+                throw new Error('You do not have access to this page.');
+            }
+            setCurrentUser(user);
+            return user;
+        }
 
-            addUserMessage.textContent = `Created user ${data.email}.`;
-            addUserMessage.classList.add('text-green-600');
-            addUserForm.reset();
-            newRoleSelect.value = 'timekeeper';
-            toggleDepotField();
-            await loadUsers();
-        } catch (error) {
-            console.error('Failed to create user:', error);
-            addUserMessage.textContent = error.message;
-            addUserMessage.classList.add('text-red-600');
+        async function handleLogin(event) {
+            event.preventDefault();
+            loginError.textContent = '';
+
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+
+            try {
+                const credential = await signInWithEmailAndPassword(auth, email, password);
+                await ensureAdminAccess(credential.user);
+
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.message || 'Unable to sign in.');
+                }
+                if (data.user?.role !== 'admin') {
+                    throw new Error('You must be an administrator to access this page.');
+                }
+
+                setToken(data.token);
+                setCurrentUser(data.user);
+                showDashboard();
+                await loadUsers();
+                loginForm.reset();
+            } catch (error) {
+                console.error('Login failed:', error);
+                await handleUnauthorized(error.message || 'Unable to sign in.');
+            }
         }
     }
 
-    async function handleDeleteUser(event) {
-        const button = event.target.closest('.delete-user-btn');
-        if (!button) return;
-
-        const id = Number(button.dataset.id);
-        if (!id) return;
-
-        if (state.currentUser && state.currentUser.id === id) {
-            alert('You cannot delete your own account.');
-            return;
-        }
-
-        if (!confirm('Delete this user?')) {
-            return;
-        }
-
-        try {
-            const response = await fetchWithAuth(`/api/users/${id}`, { method: 'DELETE' });
-            if (!response.ok && response.status !== 204) {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.message || 'Failed to delete user.');
+        async function handleLogout() {
+            clearSession();
+            try {
+                if (auth.currentUser) {
+                    await signOut(auth);
+                }
+            } catch (error) {
+                console.warn('Failed to sign out:', error);
             }
-            await loadUsers();
-        } catch (error) {
-            console.error('Failed to delete user:', error);
-            alert(error.message);
+            showLogin('');
         }
     }
 
     async function bootstrap() {
         toggleDepotField();
 
-        if (state.token) {
+        async function handleAddUser(event) {
+            event.preventDefault();
+            addUserMessage.textContent = '';
+            addUserMessage.className = 'text-sm mt-4';
+
+            const email = document.getElementById('new-email').value.trim();
+            const password = document.getElementById('new-password').value;
+            const role = newRoleSelect.value;
+            const depot = newDepotInput.value.trim();
+
+            const payload = {
+                email,
+                password,
+                role,
+                depot: role === 'timekeeper' ? depot : null
+            };
+
             try {
-                const response = await fetchWithAuth('/api/me');
+                const response = await fetchWithAuth('/api/users', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json().catch(() => ({}));
+
                 if (!response.ok) {
-                    throw new Error('Unable to verify current user.');
+                    const errors = data.errors ? data.errors.join(', ') : data.message;
+                    throw new Error(errors || 'Failed to create user.');
                 }
-                const user = await response.json();
-                if (user.role !== 'admin') {
-                    throw new Error('You do not have access to this page.');
-                }
-                setCurrentUser(user);
-                showDashboard();
+
+                addUserMessage.textContent = `Created user ${data.email}.`;
+                addUserMessage.classList.add('text-green-600');
+                addUserForm.reset();
+                newRoleSelect.value = 'timekeeper';
+                toggleDepotField();
                 await loadUsers();
-                return;
             } catch (error) {
-                console.warn('Session bootstrap failed:', error);
-                setToken(null);
-                setCurrentUser(null);
+                console.error('Failed to create user:', error);
+                addUserMessage.textContent = error.message;
+                addUserMessage.classList.add('text-red-600');
             }
         }
 
-        showLogin();
+        async function handleDeleteUser(event) {
+            const button = event.target.closest('.delete-user-btn');
+            if (!button) return;
+
+            const id = Number(button.dataset.id);
+            if (!id) return;
+
+            if (state.currentUser && state.currentUser.id === id) {
+                alert('You cannot delete your own account.');
+                return;
+            }
+
+            if (!confirm('Delete this user?')) {
+                return;
+            }
+
+            try {
+                const response = await fetchWithAuth(`/api/users/${id}`, { method: 'DELETE' });
+                if (!response.ok && response.status !== 204) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.message || 'Failed to delete user.');
+                }
+                await loadUsers();
+            } catch (error) {
+                console.error('Failed to delete user:', error);
+                alert(error.message);
+            }
+        }
+
+        async function handleAuthStateChange(user) {
+            if (!user) {
+                clearSession();
+                showLogin('');
+                return;
+            }
+
+            try {
+                await ensureAdminAccess(user);
+            } catch (error) {
+                console.error('Access denied:', error);
+                await handleUnauthorized(error.message || 'Access denied.');
+                return;
+            }
+
+            if (!state.token) {
+                showLogin('Please sign in to start a session.');
+                return;
+            }
+
+            try {
+                await verifyServerSession();
+                showDashboard();
+                await loadUsers();
+            } catch (error) {
+                console.error('Failed to restore session:', error);
+                await handleUnauthorized('Your session has expired. Please sign in again.');
+            }
+        }
+
+        function bootstrap() {
+            toggleDepotField();
+            if (!state.token) {
+                showLogin('');
+            }
+        }
+
+        loginForm.addEventListener('submit', handleLogin);
+        logoutButton.addEventListener('click', handleLogout);
+        addUserForm.addEventListener('submit', handleAddUser);
+        newRoleSelect.addEventListener('change', toggleDepotField);
+        userTableBody.addEventListener('click', handleDeleteUser);
+
+        onAuthStateChanged(auth, handleAuthStateChange);
+        bootstrap();
     }
-
-    loginForm.addEventListener('submit', handleLogin);
-    logoutButton.addEventListener('click', handleLogout);
-    addUserForm.addEventListener('submit', handleAddUser);
-    newRoleSelect.addEventListener('change', toggleDepotField);
-    userTableBody.addEventListener('click', handleDeleteUser);
-
-    bootstrap();
-</script>
+    </script>
 </body>
 </html>
