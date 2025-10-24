@@ -533,6 +533,9 @@
             const loginForm = document.getElementById('login-form');
             const logoutButton = document.getElementById('logout-button');
             const busListContainer = document.getElementById('bus-list-container');
+            const busTableBody = document.getElementById('bus-table-body');
+            const busEmptyState = document.getElementById('bus-empty-state');
+            const lastUpdatedLabel = document.getElementById('last-updated');
             const loading = document.getElementById('loading');
 
             const busModal = document.getElementById('bus-modal');
@@ -564,6 +567,11 @@
             let unsubscribe = null;
             let priceMatrixUnsubscribe = null;
             let priceAutoFillRegistered = false;
+
+            const state = {
+                buses: [],
+                sortable: null
+            };
 
             const priceLookup = new Map();
             const priceEntryByKey = new Map();
@@ -947,63 +955,91 @@
                 if (unsubscribe) unsubscribe(); // Detach previous listener
                 const busesQuery = query(collection(db, 'buses'), orderBy('sortOrder'));
                 unsubscribe = onSnapshot(busesQuery, snapshot => {
-                    loading.style.display = 'none';
                     const buses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     renderBusTable(buses);
                 }, error => {
-                    console.error("Error fetching buses:", error);
-                    loading.textContent = "Error loading data. Check console.";
-                });
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || 'Login failed');
-                }
-                const table = document.createElement('table');
-                table.className = 'min-w-full divide-y divide-gray-200';
-                table.innerHTML = `
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From &rarr; To</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="bus-table-body" class="bg-white divide-y divide-gray-200"></tbody>`;
-                busListContainer.appendChild(table);
-                const tbody = document.getElementById('bus-table-body');
-                
-                buses.forEach(bus => {
-                    const tr = document.createElement('tr');
-                    tr.dataset.id = bus.id;
-                    tr.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap"><span class="font-bold">${bus.route}</span><br><span class="text-sm text-gray-500">${bus.operator}</span></td>
-                        <td class="px-6 py-4 whitespace-nowrap">${bus.departsFrom}<br>${bus.arrivesAt}</td>
-                        <td class="px-6 py-4 whitespace-nowrap">${bus.departureTime}<br>${bus.arrivalTime}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-xs">${(bus.availability || []).join(', ')}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button class="text-indigo-600 hover:text-indigo-900 edit-btn" data-id="${bus.id}">Edit</button>
-                            <button class="text-red-600 hover:text-red-900 ml-4 delete-btn" data-id="${bus.id}">Delete</button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                
-                // Init SortableJS for drag-and-drop
-                new Sortable(tbody, {
-                    animation: 150,
-                    ghostClass: 'sortable-ghost',
-                    onEnd: async (evt) => {
-                        const orderedIds = Array.from(evt.target.children).map(child => child.dataset.id);
-                        const batch = writeBatch(db);
-                        orderedIds.forEach((id, index) => {
-                            const docRef = doc(db, 'buses', id);
-                            batch.update(docRef, { sortOrder: index });
-                        });
-                        await batch.commit();
+                    console.error('Error fetching buses:', error);
+                    if (loading) {
+                        loading.textContent = 'Error loading data. Check console.';
+                        loading.classList.remove('hidden');
                     }
                 });
+            }
+
+            function renderBusTable(buses) {
+                state.buses = Array.isArray(buses) ? buses : [];
+
+                if (loading) {
+                    loading.classList.add('hidden');
+                }
+
+                if (!busTableBody) {
+                    return;
+                }
+
+                busTableBody.innerHTML = '';
+
+                if (!state.buses.length) {
+                    if (busListContainer) {
+                        busListContainer.classList.add('hidden');
+                    }
+                    if (busEmptyState) {
+                        busEmptyState.classList.remove('hidden');
+                    }
+                    if (lastUpdatedLabel) {
+                        lastUpdatedLabel.textContent = '';
+                    }
+                } else {
+                    state.buses.forEach((bus, index) => {
+                        const tr = document.createElement('tr');
+                        tr.dataset.id = bus.id;
+                        tr.innerHTML = `
+                            <td class="px-4 py-3 text-sm text-gray-500 font-medium cursor-move">${index + 1}</td>
+                            <td class="px-4 py-3">
+                                <div class="font-semibold text-gray-800">${bus.route || '—'}</div>
+                                <div class="text-sm text-gray-500">${bus.operator || ''}</div>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">
+                                <div class="font-medium">${bus.departsFrom || '—'}</div>
+                                <div class="text-xs text-gray-500">${bus.departureTime || '—'}</div>
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">
+                                <div class="font-medium">${bus.arrivesAt || '—'}</div>
+                                <div class="text-xs text-gray-500">${bus.arrivalTime || '—'}</div>
+                            </td>
+                            <td class="px-4 py-3 text-xs text-gray-600">${Array.isArray(bus.availability) ? bus.availability.join(', ') : '—'}</td>
+                            <td class="px-4 py-3 text-sm">${renderStatusPill(bus.status)}</td>
+                            <td class="px-4 py-3 text-right text-sm font-medium">
+                                <button class="text-indigo-600 hover:text-indigo-900 edit-btn" data-id="${bus.id}">Edit</button>
+                                <button class="text-red-600 hover:text-red-900 ml-4 delete-btn" data-id="${bus.id}">Delete</button>
+                            </td>`;
+                        busTableBody.appendChild(tr);
+                    });
+
+                    if (busListContainer) {
+                        busListContainer.classList.remove('hidden');
+                    }
+                    if (busEmptyState) {
+                        busEmptyState.classList.add('hidden');
+                    }
+                    if (lastUpdatedLabel) {
+                        lastUpdatedLabel.textContent = `Last updated ${new Date().toLocaleString()}`;
+                    }
+                }
+
+                if (state.sortable) {
+                    state.sortable.destroy();
+                    state.sortable = null;
+                }
+
+                if (state.buses.length && busTableBody) {
+                    state.sortable = new Sortable(busTableBody, {
+                        animation: 150,
+                        handle: 'td:first-child',
+                        ghostClass: 'sortable-ghost',
+                        onEnd: handleReorder
+                    });
+                }
             }
 
             busListContainer.addEventListener('click', async (e) => {
@@ -1019,17 +1055,6 @@
                     }
                 }
             });
-
-            if (state.sortable) {
-                state.sortable.destroy();
-            }
-            state.sortable = new Sortable(busTableBody, {
-                animation: 150,
-                handle: 'td:first-child',
-                ghostClass: 'sortable-ghost',
-                onEnd: handleReorder
-            });
-        
 
         function renderStatusPill(status) {
             const map = {
