@@ -565,29 +565,6 @@
             };
         }
 
-        async function fetchWithAuth(url, options = {}) {
-            if (!currentUser) {
-                const error = new Error('User must be authenticated to perform this action.');
-                showActionMessage(error.message, 'error');
-                throw error;
-            }
-
-            const headers = new Headers(options.headers || {});
-            if (!headers.has('Content-Type')) {
-                headers.set('Content-Type', 'application/json');
-            }
-
-            const token = await currentUser.getIdToken();
-            headers.set('Authorization', `Bearer ${token}`);
-            try {
-                return await fetch(url, { ...options, headers });
-            } catch (error) {
-                console.error('Network request failed:', error);
-                showActionMessage(`Network request failed: ${describeError(error)}`, 'error');
-                throw error;
-            }
-        }
-
         function renderStatusPill(status) {
             const map = {
                 Scheduled: 'bg-gray-100 text-gray-700',
@@ -698,17 +675,23 @@
 
         async function handleReorder() {
             if (!busTableBody) return;
+
             const orderedIds = Array.from(busTableBody.querySelectorAll('tr'))
                 .map(row => row.dataset.id)
                 .filter(Boolean);
+
+            if (!orderedIds.length) {
+                return;
+            }
+
+            const batch = writeBatch(db);
+            orderedIds.forEach((id, index) => {
+                const ref = doc(db, 'buses', id);
+                batch.update(ref, { sortOrder: index + 1 });
+            });
+
             try {
-                const response = await fetchWithAuth('/api/buses/order', {
-                    method: 'POST',
-                    body: JSON.stringify({ orderedIds })
-                });
-                if (!response.ok) {
-                    throw new Error('Failed to update order');
-                }
+                await batch.commit();
                 showActionMessage('Timetable order updated successfully.', 'success');
             } catch (error) {
                 console.error('Reorder failed', error);
