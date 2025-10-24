@@ -93,7 +93,7 @@
 
     <script type="module">
         import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
         import {
             getFirestore,
             collection,
@@ -407,11 +407,11 @@
                             loadUsers();
                         } else {
                             alert('Access Denied. You must be an administrator to view this page.');
-                            await auth.signOut();
+                            await signOut(auth);
                         }
                     } catch (error) {
                         alert('Unable to verify your permissions. Please try again later.');
-                        await auth.signOut();
+                        await signOut(auth);
                     }
                 } else {
                     currentUser = null;

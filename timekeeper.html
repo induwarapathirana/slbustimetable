@@ -119,7 +119,7 @@
 
     <script type="module">
         import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
         import {
             getFirestore,
             addDoc,
@@ -365,12 +365,12 @@
                             loadScheduleForSelectedDate();
                         } else {
                             alert('Access Denied. You must be a Time Keeper to view this page.');
-                            await auth.signOut();
+                            await signOut(auth);
                         }
                     } catch (error) {
                         console.error("Permission error on login:", error);
                         alert('Error verifying your permissions. Please contact an administrator.');
-                        await auth.signOut();
+                        await signOut(auth);
                     }
                 } else {
                     currentUser = null;
