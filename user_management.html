@@ -12,70 +12,65 @@
 </head>
 <body class="bg-gray-100 text-gray-800">
 
-    <!-- Login Screen -->
     <div id="login-screen" class="min-h-screen flex items-center justify-center">
         <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
             <h2 class="text-2xl font-bold text-center mb-6">Admin Login</h2>
-            <form id="login-form">
-                <div class="mb-4">
+            <form id="login-form" class="space-y-4">
+                <div>
                     <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
                     <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
-                <div class="mb-6">
+                <div>
                     <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
                     <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Login</button>
+                <p id="login-error" class="text-red-500 text-sm text-center"></p>
             </form>
-            <p id="login-error" class="text-red-500 text-sm mt-4 text-center"></p>
         </div>
     </div>
 
-    <!-- Main Dashboard -->
     <div id="dashboard" class="hidden">
         <header class="bg-white shadow-md">
             <nav class="container mx-auto px-4 py-4 flex justify-between items-center">
                 <h1 class="text-xl font-bold">User Management</h1>
                 <div>
-                     <a href="/admin.html" class="text-indigo-600 hover:underline mr-4">Bus Schedule Admin</a>
+                    <a href="/admin.html" class="text-indigo-600 hover:underline mr-4">Bus Schedule Admin</a>
                     <button id="logout-button" class="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600">Logout</button>
                 </div>
             </nav>
         </header>
 
         <main class="container mx-auto p-4 md:p-6">
-            <div id="config-warning" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
-                <strong class="font-bold">Configuration Error!</strong>
-                <span class="block sm:inline">Firebase config is missing. Please paste it into this file to connect to your database.</span>
-            </div>
-            
-            <!-- Add User Form -->
             <div class="bg-white p-6 rounded-lg shadow-md mb-8">
                 <h2 class="text-2xl font-bold mb-4">Add New User</h2>
-                <form id="add-user-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                    <div class="md:col-span-1">
+                <form id="add-user-form" class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                    <div>
                         <label for="new-email" class="block text-sm font-medium text-gray-700">Email</label>
                         <input type="email" id="new-email" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" required>
                     </div>
-                    <div class="md:col-span-1">
+                    <div>
+                        <label for="new-password" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="new-password" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="At least 8 characters" required>
+                    </div>
+                    <div>
                         <label for="new-role" class="block text-sm font-medium text-gray-700">Role</label>
                         <select id="new-role" class="mt-1 block w-full p-2 border border-gray-300 rounded-md">
                             <option value="timekeeper">Time Keeper</option>
                             <option value="admin">Admin</option>
                         </select>
                     </div>
-                    <div id="depot-field-container" class="md:col-span-1">
+                    <div id="depot-field-container">
                         <label for="new-depot" class="block text-sm font-medium text-gray-700">Depot</label>
-                        <input type="text" id="new-depot" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., Makumbura" required>
+                        <input type="text" id="new-depot" class="mt-1 block w-full p-2 border border-gray-300 rounded-md" placeholder="e.g., Makumbura">
                     </div>
-                    <div class="md:col-span-1">
+                    <div>
                         <button type="submit" class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600">Create User</button>
                     </div>
                 </form>
                 <p id="add-user-message" class="text-sm mt-4"></p>
             </div>
 
-            <!-- User List -->
             <div class="bg-white p-6 rounded-lg shadow-md">
                 <h2 class="text-2xl font-bold mb-4">Existing Users</h2>
                 <div id="user-list-loading">Loading users...</div>
@@ -86,250 +81,233 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Depot</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="user-table-body" class="bg-white divide-y divide-gray-200">
-                            <!-- User rows will be injected here -->
-                        </tbody>
+                        <tbody id="user-table-body" class="bg-white divide-y divide-gray-200"></tbody>
                     </table>
                 </div>
             </div>
         </main>
     </div>
 
-    <script type="module">
-        import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import {
-            getAuth,
-            onAuthStateChanged,
-            signInWithEmailAndPassword,
-            signOut
-        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-        import {
-            getFirestore,
-            collection,
-            doc,
-            getDoc,
-            getDocs,
-            limit,
-            query,
-            where
-        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    <script>
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "firebase/app";
+        import { getAnalytics } from "firebase/analytics";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
 
-        // This is the correct format. Just paste your values here.
+        // Your web app's Firebase configuration
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
         const firebaseConfig = {
-            apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
-            authDomain: "sl-bus-timetable-app.firebaseapp.com",
-            projectId: "sl-bus-timetable-app",
-            storageBucket: "sl-bus-timetable-app.firebasestorage.app",
-            messagingSenderId: "107324674333",
-            appId: "1:107324674333:web:2058e8958f2c1dfd0c91f4",
-            measurementId: "G-JEBZ0J484N"
+        apiKey: "AIzaSyArXmYmU6l4t_xaNquhT0JUH4sG2ge3tZo",
+        authDomain: "bustimetable-v2.firebaseapp.com",
+        projectId: "bustimetable-v2",
+        storageBucket: "bustimetable-v2.firebasestorage.app",
+        messagingSenderId: "665985152111",
+        appId: "1:665985152111:web:291020ebb619374c4f899a",
+        measurementId: "G-0EEKT7RR6R"
         };
 
-        // --- SCRIPT INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', () => {
-            if (!firebaseConfig.apiKey) {
-                document.getElementById('config-warning').classList.remove('hidden');
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const TOKEN_KEY = 'slbustimetable:token';
+        const state = {
+            token: localStorage.getItem(TOKEN_KEY) || null,
+            currentUser: null,
+            users: []
+        };
+
+        const loginScreen = document.getElementById('login-screen');
+        const dashboard = document.getElementById('dashboard');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const logoutButton = document.getElementById('logout-button');
+        const addUserForm = document.getElementById('add-user-form');
+        const addUserMessage = document.getElementById('add-user-message');
+        const userTable = document.getElementById('user-table');
+        const userTableBody = document.getElementById('user-table-body');
+        const userListLoading = document.getElementById('user-list-loading');
+        const newRoleSelect = document.getElementById('new-role');
+        const depotFieldContainer = document.getElementById('depot-field-container');
+        const newDepotInput = document.getElementById('new-depot');
+
+        function toggleView() {
+            const isAuthenticated = Boolean(state.token);
+            if (isAuthenticated) {
+                loginScreen.classList.add('hidden');
+                dashboard.classList.remove('hidden');
+                fetchProfile();
+            } else {
+                loginScreen.classList.remove('hidden');
+                dashboard.classList.add('hidden');
+            }
+        }
+
+        async function fetchWithAuth(url, options = {}) {
+            const headers = new Headers(options.headers || {});
+            headers.set('Content-Type', 'application/json');
+            if (state.token) {
+                headers.set('Authorization', `Bearer ${state.token}`);
+            }
+            const response = await fetch(url, { ...options, headers });
+            if (response.status === 401) {
+                handleLogout();
+                throw new Error('Unauthorized');
+            }
+            return response;
+        }
+
+        async function fetchProfile() {
+            try {
+                const response = await fetchWithAuth('/api/me');
+                if (!response.ok) throw new Error('Failed to load profile');
+                const data = await response.json();
+                state.currentUser = data;
+                if (data.role !== 'admin') {
+                    alert('Only administrators can manage users.');
+                    handleLogout();
+                    return;
+                }
+                loadUsers();
+            } catch (error) {
+                console.error(error);
+                loginError.textContent = 'Failed to verify user. Please login again.';
+                handleLogout();
+            }
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            loginError.textContent = '';
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Login failed');
+                state.token = data.token;
+                localStorage.setItem(TOKEN_KEY, data.token);
+                toggleView();
+            } catch (error) {
+                loginError.textContent = error.message;
+            }
+        }
+
+        function handleLogout() {
+            state.token = null;
+            state.currentUser = null;
+            localStorage.removeItem(TOKEN_KEY);
+            toggleView();
+        }
+
+        async function loadUsers() {
+            userListLoading.style.display = 'block';
+            userTable.classList.add('hidden');
+            try {
+                const response = await fetchWithAuth('/api/users');
+                if (!response.ok) throw new Error('Failed to fetch users');
+                const data = await response.json();
+                state.users = data;
+                renderUsers();
+            } catch (error) {
+                console.error(error);
+                userListLoading.textContent = 'Failed to load users.';
+            }
+        }
+
+        function renderUsers() {
+            userTableBody.innerHTML = '';
+            if (!state.users.length) {
+                userListLoading.textContent = 'No users yet.';
                 return;
             }
+            userListLoading.style.display = 'none';
+            userTable.classList.remove('hidden');
+            state.users.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${user.email}</td>
+                    <td class="px-6 py-4 whitespace-nowrap capitalize">${user.role}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${user.depot || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <button class="text-red-600 hover:text-red-900 delete-user-btn" data-id="${user.id}">Delete</button>
+                    </td>`;
+                userTableBody.appendChild(tr);
+            });
+        }
 
-            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-
-            // DOM Elements
-            const loginScreen = document.getElementById('login-screen');
-            const dashboard = document.getElementById('dashboard');
-            const loginForm = document.getElementById('login-form');
-            const logoutButton = document.getElementById('logout-button');
-            const addUserForm = document.getElementById('add-user-form');
-            const addUserMessage = document.getElementById('add-user-message');
-            const userTable = document.getElementById('user-table');
-            const userTableBody = document.getElementById('user-table-body');
-            const userListLoading = document.getElementById('user-list-loading');
-            const newRoleSelect = document.getElementById('new-role');
-            const depotFieldContainer = document.getElementById('depot-field-container');
-
-            let currentUser = null;
-
-            function normalizeRole(role) {
-                return (role || '').toString().trim().toLowerCase();
-            }
-
-            async function fetchUserProfile(user) {
-                if (!user) return null;
-                const email = (user.email || '').trim();
-                const emailLower = email.toLowerCase();
-
-                const usersCollection = collection(db, 'users');
-
-                const tryDoc = async (docId) => {
-                    if (!docId) return null;
-                    const docRef = doc(usersCollection, docId);
-                    const docSnap = await getDoc(docRef);
-                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
-                };
-
-                try {
-                    let profile = await tryDoc(user.uid);
-                    if (profile) return profile;
-
-                    profile = await tryDoc(email);
-                    if (profile) return profile;
-
-                    if (emailLower !== email) {
-                        profile = await tryDoc(emailLower);
-                        if (profile) return profile;
-                    }
-
-                    if (email) {
-                        let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
-                        if (!snapshot.empty) {
-                            const docSnap = snapshot.docs[0];
-                            return { id: docSnap.id, ...docSnap.data() };
-                        }
-
-                        snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
-                        if (!snapshot.empty) {
-                            const docSnap = snapshot.docs[0];
-                            return { id: docSnap.id, ...docSnap.data() };
-                        }
-                    }
-
-                    return null;
-                } catch (error) {
-                    console.error('Error fetching user profile:', error);
-                    throw error;
+        async function handleAddUser(event) {
+            event.preventDefault();
+            addUserMessage.textContent = '';
+            const email = document.getElementById('new-email').value.trim();
+            const password = document.getElementById('new-password').value;
+            const role = newRoleSelect.value;
+            const depot = newDepotInput.value.trim();
+            const payload = { email, password, role, depot: role === 'timekeeper' ? depot : null };
+            try {
+                const response = await fetchWithAuth('/api/users', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error((data.errors && data.errors.join(', ')) || data.message || 'Failed to create user');
                 }
+                addUserMessage.textContent = `Created user ${data.email}.`;
+                addUserMessage.className = 'text-sm mt-4 text-green-600';
+                addUserForm.reset();
+                newRoleSelect.value = 'timekeeper';
+                toggleDepotField();
+                loadUsers();
+            } catch (error) {
+                addUserMessage.textContent = error.message;
+                addUserMessage.className = 'text-sm mt-4 text-red-600';
             }
+        }
 
-            // --- AUTHENTICATION & ACCESS CONTROL ---
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    try {
-                        const profile = await fetchUserProfile(user);
-                        if (profile && normalizeRole(profile.role) === 'admin') {
-                            currentUser = user;
-                            loginScreen.classList.add('hidden');
-                            dashboard.classList.remove('hidden');
-                            loadUsers();
-                        } else {
-                            alert('Access Denied. You must be an administrator to view this page.');
-                            await signOut(auth);
-                        }
-                    } catch (error) {
-                        alert('Unable to verify your permissions. Please try again later.');
-                        await signOut(auth);
-                    }
+        async function handleDeleteUser(event) {
+            if (!event.target.classList.contains('delete-user-btn')) return;
+            const id = Number(event.target.dataset.id);
+            if (!id || (state.currentUser && state.currentUser.id === id)) {
+                alert('You cannot delete this account.');
+                return;
+            }
+            if (!confirm('Delete this user?')) return;
+            try {
+                const response = await fetchWithAuth(`/api/users/${id}`, { method: 'DELETE' });
+                if (response.status === 204) {
+                    loadUsers();
                 } else {
-                    currentUser = null;
-                    loginScreen.classList.remove('hidden');
-                    dashboard.classList.add('hidden');
+                    const data = await response.json();
+                    throw new Error(data.message || 'Failed to delete user');
                 }
-            });
-
-            loginForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-                signInWithEmailAndPassword(auth, email, password)
-                    .catch(error => {
-                        document.getElementById('login-error').textContent = error.message;
-                    });
-            });
-
-            logoutButton.addEventListener('click', () => signOut(auth));
-
-            // Show/hide depot field based on role selection
-            newRoleSelect.addEventListener('change', () => {
-                depotFieldContainer.style.display = newRoleSelect.value === 'timekeeper' ? 'block' : 'none';
-                document.getElementById('new-depot').required = newRoleSelect.value === 'timekeeper';
-            });
-            
-            // --- USER MANAGEMENT LOGIC ---
-            async function loadUsers() {
-                userListLoading.style.display = 'block';
-                userTable.classList.add('hidden');
-                
-                try {
-                    const snapshot = await getDocs(collection(db, 'users'));
-                    userTableBody.innerHTML = '';
-                    snapshot.forEach(doc => {
-                        const user = doc.data();
-                        const displayEmail = (user.email || user.username || user.name || doc.id || '').toString();
-                        const displayRole = (user.role || user.userRole || '—').toString();
-                        const displayDepot = (user.depot || user.depotName || user.location || 'N/A').toString();
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap">${displayEmail}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${displayRole}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${displayDepot}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <button class="text-red-600 hover:text-red-900 delete-user-btn" data-uid="${doc.id}">Delete</button>
-                            </td>
-                        `;
-                        userTableBody.appendChild(tr);
-                    });
-                    userListLoading.style.display = 'none';
-                    userTable.classList.remove('hidden');
-                } catch (error) {
-                    console.error("Error loading users:", error);
-                    userListLoading.textContent = 'Failed to load users.';
-                }
+            } catch (error) {
+                alert(error.message);
             }
-            
-            addUserForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                addUserMessage.textContent = 'Creating user...';
-                addUserMessage.className = 'text-sm mt-4 text-blue-600';
+        }
 
-                const email = document.getElementById('new-email').value;
-                const role = document.getElementById('new-role').value;
-                const depot = document.getElementById('new-depot').value;
+        function toggleDepotField() {
+            const showDepot = newRoleSelect.value === 'timekeeper';
+            depotFieldContainer.style.display = showDepot ? 'block' : 'none';
+            newDepotInput.required = showDepot;
+            if (!showDepot) newDepotInput.value = '';
+        }
 
-                // Note: Firebase Admin SDK is needed to create users programmatically.
-                // This is a simplified version. For a real app, you'd use a Cloud Function.
-                // We will add the user to our Firestore 'users' collection.
-                // The admin must then create the corresponding user in the Firebase Authentication console manually.
+        loginForm.addEventListener('submit', handleLogin);
+        logoutButton.addEventListener('click', handleLogout);
+        addUserForm.addEventListener('submit', handleAddUser);
+        userTableBody.addEventListener('click', handleDeleteUser);
+        newRoleSelect.addEventListener('change', toggleDepotField);
 
-                try {
-                    // This is a placeholder for adding to a 'users' collection for role management.
-                    // A proper implementation requires creating the user in Firebase Auth via a Cloud Function for security.
-                    // For now, we will just show a message.
-                    
-                    addUserMessage.innerHTML = `
-                        <strong>Action Required:</strong> 
-                        1. Go to the Firebase Authentication console. <br/>
-                        2. Manually add a new user with the email: <strong>${email}</strong> and a temporary password. <br/>
-                        3. A user profile with the role '<strong>${role}</strong>' will be created in Firestore upon their first login.
-                    `;
-                    addUserMessage.className = 'text-sm mt-4 text-yellow-800 bg-yellow-100 p-3 rounded-md';
-
-                    // In a real app, you would call a cloud function here to create the auth user.
-                    // await createAndSetUserRole({ email, role, depot });
-                    
-                    // We'll add a document to firestore as a placeholder.
-                    // Note: This won't work perfectly without a matching Auth UID.
-                    // This is for demonstration. The guide will explain the proper Cloud Function approach.
-                    
-                    addUserForm.reset();
-
-                } catch (error) {
-                    console.error('Error adding user:', error);
-                    addUserMessage.textContent = 'Error: ' + error.message;
-                    addUserMessage.className = 'text-sm mt-4 text-red-600';
-                }
-            });
-
-            // This is a placeholder for a real implementation that would require an Admin SDK.
-            userTableBody.addEventListener('click', (e) => {
-                if (e.target.classList.contains('delete-user-btn')) {
-                    alert("User deletion must be done from the Firebase Authentication console and the user document in Firestore for security reasons.");
-                }
-            });
-        });
+        toggleDepotField();
+        toggleView();
     </script>
 </body>
 </html>
