@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Time Keeper Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -47,29 +44,107 @@
         </header>
 
         <div class="bg-white p-6 rounded-lg shadow-md mb-8">
-            <h2 class="text-xl font-bold mb-4">Today's Departures</h2>
-            <div id="schedule-container" class="space-y-4">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                    <h2 class="text-xl font-bold">Schedule for <span id="selected-date-label" class="text-indigo-600"></span></h2>
+                    <p class="text-sm text-gray-500">Status updates apply only to the selected date and automatically revert afterwards.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <label for="schedule-date" class="text-sm font-semibold text-gray-700">Select Date</label>
+                    <input type="date" id="schedule-date" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+            </div>
+            <div class="mt-4 flex items-center gap-2 text-xs text-gray-500">
+                <span class="inline-flex items-center justify-center w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                <span>Tap a status to update it for this day. Choose "Scheduled" to clear overrides.</span>
+            </div>
+            <div id="schedule-container" class="space-y-4 mt-4">
                 <!-- Schedule items will be inserted here -->
             </div>
         </div>
 
         <div class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-bold mb-4">Add Unscheduled Bus</h2>
+            <p class="text-sm text-gray-500 mb-4">Create a one-off service for the selected date or add a permanent timetable entry using your depot presets.</p>
             <form id="add-bus-form" class="space-y-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <input type="text" placeholder="Route" id="add-route" class="w-full p-2 border rounded" required>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <input type="text" placeholder="Route (e.g., EX1/extra)" id="add-route" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Operator" id="add-operator" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Arrives At (Destination)" id="add-arrivesAt" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="add-departsFrom" class="w-full p-2 border rounded" list="timekeeper-location-options" required>
+                    <input type="text" placeholder="Arrives At" id="add-arrivesAt" class="w-full p-2 border rounded" list="timekeeper-location-options" required>
                     <input type="time" id="add-departureTime" class="w-full p-2 border rounded" required>
+                    <input type="time" id="add-arrivalTime" class="w-full p-2 border rounded" placeholder="Arrival Time">
+                    <input type="text" placeholder="Price" id="add-price" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="Expressway Entrance" id="add-expresswayEntrance" class="w-full p-2 border rounded">
+                    <input type="text" placeholder="Expressway Exit" id="add-expresswayExit" class="w-full p-2 border rounded">
                 </div>
-                 <div class="text-right">
+
+                <div>
+                    <label class="font-semibold text-sm text-gray-700">Availability</label>
+                    <div id="add-availability" class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2"></div>
+                </div>
+
+                <div>
+                    <label class="font-semibold text-sm text-gray-700">Intermediate Stops (one per line)</label>
+                    <textarea id="add-stops" rows="3" class="w-full p-2 border rounded"></textarea>
+                </div>
+
+                <fieldset class="border border-gray-200 rounded-md p-4">
+                    <legend class="px-2 text-sm font-semibold text-gray-700">How long should this bus stay in the timetable?</legend>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 text-sm">
+                        <label class="flex items-start gap-2">
+                            <input type="radio" name="bus-duration" value="single-day" class="mt-1" checked>
+                            <span>
+                                Single day only (adds to <span class="font-semibold" id="single-day-label"></span>)
+                                <span class="block text-gray-500">The bus will appear only on the selected date.</span>
+                            </span>
+                        </label>
+                        <label class="flex items-start gap-2">
+                            <input type="radio" name="bus-duration" value="permanent" class="mt-1">
+                            <span>
+                                Keep permanently
+                                <span class="block text-gray-500">Uses the availability days above for ongoing departures.</span>
+                            </span>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <p id="add-bus-message" class="text-sm font-medium"></p>
+
+                <div class="flex justify-end">
                     <button type="submit" class="bg-blue-500 text-white py-2 px-6 rounded-md hover:bg-blue-600">Add Bus</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <script>
+    <datalist id="timekeeper-location-options"></datalist>
+
+    <script type="module">
+        import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+        import {
+            getAuth,
+            onAuthStateChanged,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import {
+            getFirestore,
+            addDoc,
+            collection,
+            deleteDoc,
+            doc,
+            getDoc,
+            getDocs,
+            limit,
+            onSnapshot,
+            orderBy,
+            query,
+            serverTimestamp,
+            setDoc,
+            where
+        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
         // This is the correct format. Just paste your values here.
         const firebaseConfig = {
             apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
@@ -88,9 +163,9 @@
                 return;
             }
 
-            const app = firebase.initializeApp(firebaseConfig);
-            const auth = firebase.auth();
-            const db = firebase.firestore();
+            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
 
             // DOM Elements
             const loginScreen = document.getElementById('login-screen');
@@ -99,32 +174,125 @@
             const logoutButton = document.getElementById('logout-button');
             const scheduleContainer = document.getElementById('schedule-container');
             const depotNameEl = document.getElementById('depot-name');
+            const scheduleDateInput = document.getElementById('schedule-date');
+            const selectedDateLabel = document.getElementById('selected-date-label');
+            const singleDayLabel = document.getElementById('single-day-label');
             const addBusForm = document.getElementById('add-bus-form');
+            const addBusMessage = document.getElementById('add-bus-message');
+            const addRouteInput = document.getElementById('add-route');
+            const addOperatorInput = document.getElementById('add-operator');
+            const addDepartsFromInput = document.getElementById('add-departsFrom');
+            const addArrivesAtInput = document.getElementById('add-arrivesAt');
+            const addDepartureTimeInput = document.getElementById('add-departureTime');
+            const addArrivalTimeInput = document.getElementById('add-arrivalTime');
+            const addPriceInput = document.getElementById('add-price');
+            const addExpresswayEntranceInput = document.getElementById('add-expresswayEntrance');
+            const addExpresswayExitInput = document.getElementById('add-expresswayExit');
+            const addStopsInput = document.getElementById('add-stops');
+            const addAvailabilityContainer = document.getElementById('add-availability');
+            const locationOptionsList = document.getElementById('timekeeper-location-options');
 
             let currentUser = null;
             let userDepot = null;
             let unsubscribe = null;
+            let overrideUnsubscribe = null;
+            let priceMatrixUnsubscribe = null;
+            let locationUnsubscribe = null;
+
+            let latestBuses = [];
+            let statusOverrides = new Map();
+            let selectedDate = null;
+
+            const priceLookup = new Map();
+            const locationSet = new Set();
+            let priceAutoFillRegistered = false;
+            const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+            const statusOptions = ["Scheduled", "Departed", "Arrived", "Delayed", "Cancelled"];
+            const statusStyles = {
+                "Scheduled": "border-gray-300 text-gray-700 bg-white hover:bg-gray-50",
+                "Departed": "border-green-500 text-green-700 bg-green-50 hover:bg-green-100",
+                "Arrived": "border-blue-500 text-blue-700 bg-blue-50 hover:bg-blue-100",
+                "Delayed": "border-yellow-500 text-yellow-700 bg-yellow-50 hover:bg-yellow-100",
+                "Cancelled": "border-red-500 text-red-700 bg-red-50 hover:bg-red-100"
+            };
+
+            function normalizeRole(role) {
+                return (role || '').toString().trim().toLowerCase();
+            }
+
+            async function fetchUserProfile(user) {
+                if (!user) return null;
+                const email = (user.email || '').trim();
+                const emailLower = email.toLowerCase();
+
+                const usersCollection = collection(db, 'users');
+
+                const tryDoc = async (docId) => {
+                    if (!docId) return null;
+                    const docRef = doc(usersCollection, docId);
+                    const docSnap = await getDoc(docRef);
+                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                };
+
+                try {
+                    let profile = await tryDoc(user.uid);
+                    if (profile) return profile;
+
+                    profile = await tryDoc(email);
+                    if (profile) return profile;
+
+                    if (emailLower !== email) {
+                        profile = await tryDoc(emailLower);
+                        if (profile) return profile;
+                    }
+
+                    if (email) {
+                        let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return { id: docSnap.id, ...docSnap.data() };
+                        }
+
+                        snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return { id: docSnap.id, ...docSnap.data() };
+                        }
+                    }
+
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                    throw error;
+                }
+            }
 
             // --- AUTHENTICATION & ACCESS CONTROL ---
-            auth.onAuthStateChanged(async (user) => {
+            onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     try {
-                        const userDoc = await db.collection('users').doc(user.uid).get();
-                        if (userDoc.exists && userDoc.data().role === 'timekeeper') {
+                        const profile = await fetchUserProfile(user);
+                        if (profile && normalizeRole(profile.role) === 'timekeeper') {
                             currentUser = user;
-                            userDepot = userDoc.data().depot;
-                            depotNameEl.textContent = userDepot;
+                            const rawDepot = profile.depot ?? profile.depotName ?? profile.location ?? '';
+                            userDepot = rawDepot ? String(rawDepot) : '';
+                            depotNameEl.textContent = userDepot || '—';
+                            addDepartsFromInput.value = userDepot || '';
                             loginScreen.classList.add('hidden');
                             dashboard.classList.remove('hidden');
-                            loadTodaysSchedule();
+                            setupAvailabilityCheckboxes();
+                            startLocationListener();
+                            startPriceMatrixListener();
+                            initializeDatePicker();
+                            loadScheduleForSelectedDate();
                         } else {
                             alert('Access Denied. You must be a Time Keeper to view this page.');
-                            auth.signOut();
+                            await signOut(auth);
                         }
                     } catch (error) {
                         console.error("Permission error on login:", error);
                         alert('Error verifying your permissions. Please contact an administrator.');
-                        auth.signOut();
+                        await signOut(auth);
                     }
                 } else {
                     currentUser = null;
@@ -132,6 +300,10 @@
                     loginScreen.classList.remove('hidden');
                     dashboard.classList.remove('hidden');
                     if (unsubscribe) unsubscribe();
+                    if (overrideUnsubscribe) overrideUnsubscribe();
+                    if (priceMatrixUnsubscribe) priceMatrixUnsubscribe();
+                    if (locationUnsubscribe) locationUnsubscribe();
+                    resetState();
                 }
             });
 
@@ -139,115 +311,367 @@
                 e.preventDefault();
                 const email = document.getElementById('email').value;
                 const password = document.getElementById('password').value;
-                auth.signInWithEmailAndPassword(email, password)
+                signInWithEmailAndPassword(auth, email, password)
                     .catch(error => {
                         document.getElementById('login-error').textContent = error.message;
                     });
             });
 
-            logoutButton.addEventListener('click', () => auth.signOut());
+            logoutButton.addEventListener('click', () => signOut(auth));
 
             // --- DATA HANDLING ---
-            function loadTodaysSchedule() {
-                if (unsubscribe) unsubscribe();
-                
-                const today = new Date().toLocaleString('en-US', { weekday: 'long' });
+            function resetState() {
+                latestBuses = [];
+                statusOverrides = new Map();
+                selectedDate = null;
+                scheduleContainer.innerHTML = '';
+                addBusForm.reset();
+                addBusMessage.textContent = '';
+                addBusMessage.className = 'text-sm font-medium';
+                priceLookup.clear();
+                locationSet.clear();
+                updateLocationOptions();
+                priceAutoFillRegistered = false;
+                addDepartsFromInput.value = '';
+            }
 
-                const query = db.collection('buses')
-                    .where('departsFrom', '==', userDepot)
-                    .where('availability', 'array-contains', today)
-                    .orderBy('departureTime');
-
-                unsubscribe = query.onSnapshot(snapshot => {
-                    if (snapshot.empty) {
-                        scheduleContainer.innerHTML = '<p class="text-center text-gray-500">No scheduled departures for today.</p>';
-                        return;
-                    }
-                    const buses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    renderSchedule(buses);
-                }, error => {
-                    console.error("Error fetching schedule:", error);
-                    scheduleContainer.innerHTML = '<p class="text-center text-red-500">Error loading schedule. Please check the console and ensure database indexes are set up.</p>';
+            function setupAvailabilityCheckboxes() {
+                if (!addAvailabilityContainer) return;
+                addAvailabilityContainer.innerHTML = '';
+                daysOfWeek.forEach(day => {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-center gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-md px-3 py-2';
+                    label.innerHTML = `<input type="checkbox" value="${day}" class="rounded text-indigo-600 focus:ring-indigo-500"> ${day}`;
+                    addAvailabilityContainer.appendChild(label);
                 });
             }
 
-            function renderSchedule(buses) {
+            function startPriceMatrixListener() {
+                if (priceMatrixUnsubscribe) priceMatrixUnsubscribe();
+                const priceMatrixQuery = query(collection(db, 'priceMatrix'), orderBy('origin'));
+                priceMatrixUnsubscribe = onSnapshot(priceMatrixQuery, snapshot => {
+                    const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    refreshPriceMatrix(entries);
+                }, error => {
+                    console.error('Error loading price presets:', error);
+                });
+            }
+
+            function refreshPriceMatrix(entries) {
+                priceLookup.clear();
+                locationSet.clear();
+                entries.forEach(entry => {
+                    const origin = (entry.origin || '').trim();
+                    const destination = (entry.destination || '').trim();
+                    if (!origin || !destination) return;
+                    locationSet.add(origin);
+                    locationSet.add(destination);
+                    const key = `${origin.toLowerCase()}__${destination.toLowerCase()}`;
+                    priceLookup.set(key, entry.price || '');
+                });
+                updateLocationOptions();
+                autoFillPriceField();
+                maybeFillTimekeeperPrice();
+            }
+
+            function startLocationListener() {
+                if (locationUnsubscribe) locationUnsubscribe();
+                locationUnsubscribe = onSnapshot(collection(db, 'buses'), snapshot => {
+                    snapshot.docs.forEach(doc => {
+                        const bus = doc.data();
+                        if (bus.departsFrom) locationSet.add((bus.departsFrom || '').trim());
+                        if (bus.arrivesAt) locationSet.add((bus.arrivesAt || '').trim());
+                    });
+                    updateLocationOptions();
+                    maybeFillTimekeeperPrice();
+                });
+            }
+
+            function updateLocationOptions() {
+                if (!locationOptionsList) return;
+                locationOptionsList.innerHTML = '';
+                Array.from(locationSet).sort((a, b) => a.localeCompare(b)).forEach(location => {
+                    const option = document.createElement('option');
+                    option.value = location;
+                    locationOptionsList.appendChild(option);
+                });
+            }
+
+            function autoFillPriceField() {
+                if (priceAutoFillRegistered) return;
+                if (!addPriceInput) return;
+                addPriceInput.dataset.autofilled = 'false';
+                addPriceInput.addEventListener('input', () => {
+                    addPriceInput.dataset.autofilled = 'false';
+                });
+                ['change', 'blur'].forEach(evt => {
+                    addDepartsFromInput.addEventListener(evt, maybeFillTimekeeperPrice);
+                    addArrivesAtInput.addEventListener(evt, maybeFillTimekeeperPrice);
+                });
+                priceAutoFillRegistered = true;
+            }
+
+            function maybeFillTimekeeperPrice() {
+                if (!addDepartsFromInput || !addArrivesAtInput || !addPriceInput) return;
+                const origin = addDepartsFromInput.value.trim();
+                const destination = addArrivesAtInput.value.trim();
+                if (!origin || !destination) return;
+                const key = `${origin.toLowerCase()}__${destination.toLowerCase()}`;
+                if (!priceLookup.has(key)) return;
+                if (!addPriceInput.value.trim() || addPriceInput.dataset.autofilled === 'true') {
+                    addPriceInput.value = priceLookup.get(key);
+                    addPriceInput.dataset.autofilled = 'true';
+                }
+            }
+
+            function initializeDatePicker() {
+                if (!scheduleDateInput) return;
+                const todayIso = formatDate(new Date());
+                if (!scheduleDateInput.value) scheduleDateInput.value = todayIso;
+                updateSelectedDateLabels(scheduleDateInput.value || todayIso);
+                scheduleDateInput.addEventListener('change', () => {
+                    updateSelectedDateLabels(scheduleDateInput.value);
+                    loadScheduleForSelectedDate();
+                });
+            }
+
+            function updateSelectedDateLabels(isoDate) {
+                if (!isoDate) return;
+                selectedDate = isoDate;
+                if (selectedDateLabel) selectedDateLabel.textContent = formatHumanDate(isoDate);
+                if (singleDayLabel) singleDayLabel.textContent = formatHumanDate(isoDate);
+            }
+
+            function loadScheduleForSelectedDate() {
+                if (!userDepot) return;
+                const isoDate = scheduleDateInput && scheduleDateInput.value ? scheduleDateInput.value : formatDate(new Date());
+                const dayName = getWeekdayName(isoDate);
+                selectedDate = isoDate;
+
+                if (unsubscribe) unsubscribe();
+                const scheduleQuery = query(
+                    collection(db, 'buses'),
+                    where('departsFrom', '==', userDepot)
+                );
+                unsubscribe = onSnapshot(scheduleQuery, snapshot => {
+                        const allBuses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        latestBuses = filterBusesForDate(allBuses, isoDate, dayName);
+                        renderSchedule(latestBuses, statusOverrides);
+                    }, error => {
+                        console.error('Error fetching schedule:', error);
+                        scheduleContainer.innerHTML = '<p class="text-center text-red-500">Unable to load schedule. Check console logs.</p>';
+                    });
+
+                if (overrideUnsubscribe) overrideUnsubscribe();
+                const overrideQuery = query(
+                    collection(db, 'busStatusOverrides'),
+                    where('depot', '==', userDepot),
+                    where('date', '==', isoDate)
+                );
+                overrideUnsubscribe = onSnapshot(overrideQuery, snapshot => {
+                        const overrideMap = new Map();
+                        snapshot.docs.forEach(doc => {
+                            const data = doc.data();
+                            overrideMap.set(data.busId, data);
+                        });
+                        statusOverrides = overrideMap;
+                        renderSchedule(latestBuses, statusOverrides);
+                    }, error => {
+                        console.error('Error fetching overrides:', error);
+                    });
+            }
+
+            function filterBusesForDate(buses, isoDate, dayName) {
+                return buses
+                    .filter(bus => {
+                        const availability = bus.availability || [];
+                        const specialDates = bus.specialDates || [];
+                        return availability.includes(dayName) || specialDates.includes(isoDate);
+                    })
+                    .map(bus => ({
+                        ...bus,
+                        isSpecial: Array.isArray(bus.specialDates) && bus.specialDates.includes(isoDate)
+                    }))
+                    .sort((a, b) => compareTimes(a.departureTime, b.departureTime));
+            }
+
+            function compareTimes(a, b) {
+                const toMinutes = (time) => {
+                    if (!time) return Number.POSITIVE_INFINITY;
+                    const [hours, minutes] = time.split(':').map(Number);
+                    if (Number.isNaN(hours) || Number.isNaN(minutes)) return Number.POSITIVE_INFINITY;
+                    return hours * 60 + minutes;
+                };
+                return toMinutes(a) - toMinutes(b);
+            }
+
+            function renderSchedule(buses, overridesMap) {
                 scheduleContainer.innerHTML = '';
+                if (!buses.length) {
+                    scheduleContainer.innerHTML = '<p class="text-center text-gray-500">No departures scheduled for this date.</p>';
+                    return;
+                }
+
                 buses.forEach(bus => {
-                    const statusColor = getStatusColor(bus.status);
+                    const override = overridesMap.get(bus.id);
+                    const status = override ? override.status : (bus.status || 'Scheduled');
+                    const statusClass = statusStyles[status] || statusStyles['Scheduled'];
+                    const isOverride = Boolean(override);
                     const card = document.createElement('div');
-                    card.className = `p-4 border-l-4 ${statusColor} bg-gray-50 rounded-md shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4`;
+                    card.className = 'p-5 bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col gap-3';
+                    if (bus.isSpecial) {
+                        card.classList.add('border-indigo-400', 'bg-indigo-50');
+                    }
                     card.innerHTML = `
-                        <div>
-                            <p class="font-bold text-lg">${bus.departureTime} &rarr; ${bus.arrivesAt}</p>
-                            <p class="text-sm text-gray-600">${bus.route} (${bus.operator})</p>
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                                <p class="text-lg font-semibold text-gray-900">${bus.route || 'Unlabeled Route'}</p>
+                                <p class="text-sm text-gray-600">${bus.operator || 'Unknown operator'}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-sm text-gray-500">Departs</p>
+                                <p class="text-xl font-bold text-gray-900">${bus.departureTime || 'TBD'}</p>
+                                ${bus.arrivalTime ? `<p class="text-xs text-gray-500">Arrives ${bus.arrivalTime}</p>` : ''}
+                            </div>
                         </div>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="font-semibold text-sm">Status:</span>
-                            <button data-id="${bus.id}" data-status="Departed" class="status-btn bg-green-500 text-white px-3 py-1 text-xs rounded-full hover:bg-green-600 disabled:opacity-50" ${bus.status === 'Departed' ? 'disabled' : ''}>Departed</button>
-                            <button data-id="${bus.id}" data-status="Arrived" class="status-btn bg-blue-500 text-white px-3 py-1 text-xs rounded-full hover:bg-blue-600 disabled:opacity-50" ${bus.status === 'Arrived' ? 'disabled' : ''}>Arrived</button>
-                            <button data-id="${bus.id}" data-status="Delayed" class="status-btn bg-yellow-500 text-white px-3 py-1 text-xs rounded-full hover:bg-yellow-600 disabled:opacity-50" ${bus.status === 'Delayed' ? 'disabled' : ''}>Delayed</button>
-                             <button data-id="${bus.id}" data-status="Cancelled" class="status-btn bg-red-500 text-white px-3 py-1 text-xs rounded-full hover:bg-red-600 disabled:opacity-50" ${bus.status === 'Cancelled' ? 'disabled' : ''}>Cancelled</button>
+                        <div class="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                            <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full border ${statusClass} status-pill">
+                                <span class="font-semibold">${status}</span>
+                                ${isOverride ? '<span class="text-[0.65rem] uppercase tracking-wide text-indigo-600">Override</span>' : ''}
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gray-100 text-gray-700">${bus.departsFrom || userDepot} → ${bus.arrivesAt || ''}</span>
+                            ${bus.price ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">${bus.price}</span>` : ''}
+                            ${bus.isSpecial ? '<span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-600 text-white text-xs">Single-day</span>' : ''}
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            ${renderStatusButtons(status, bus.id)}
                         </div>
                     `;
                     scheduleContainer.appendChild(card);
                 });
             }
 
-            function getStatusColor(status) {
-                switch (status) {
-                    case 'Departed': return 'border-green-500';
-                    case 'Arrived': return 'border-blue-500';
-                    case 'Delayed': return 'border-yellow-500';
-                    case 'Cancelled': return 'border-red-500';
-                    default: return 'border-gray-400';
-                }
+            function renderStatusButtons(activeStatus, busId) {
+                return statusOptions.map(statusOption => {
+                    const baseClass = statusStyles[statusOption] || statusStyles['Scheduled'];
+                    const isActive = statusOption === activeStatus;
+                    const activeClass = isActive ? 'ring-2 ring-offset-1 ring-indigo-500' : '';
+                    return `<button type="button" data-id="${busId}" data-status="${statusOption}" class="status-btn px-3 py-1 rounded-full border text-xs font-semibold transition ${baseClass} ${activeClass}">${statusOption}</button>`;
+                }).join('');
+            }
+
+            function formatHumanDate(isoDate) {
+                const date = new Date(`${isoDate}T00:00:00`);
+                if (Number.isNaN(date.getTime())) return isoDate;
+                return date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+            }
+
+            function formatDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            function getWeekdayName(isoDate) {
+                const date = new Date(`${isoDate}T00:00:00`);
+                return date.toLocaleDateString('en-US', { weekday: 'long' });
             }
 
             scheduleContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('status-btn')) {
-                    const busId = e.target.dataset.id;
-                    const newStatus = e.target.dataset.status;
-                    db.collection('buses').doc(busId).update({ status: newStatus })
-                        .catch(err => {
-                            console.error("Update failed:", err);
-                            alert("Failed to update status. Check permissions and console for details.");
-                        });
-                }
+                const button = e.target.closest('.status-btn');
+                if (!button) return;
+                const busId = button.dataset.id;
+                const newStatus = button.dataset.status;
+                updateStatusForDate(busId, newStatus);
             });
+
+            async function updateStatusForDate(busId, status) {
+                if (!selectedDate || !busId) return;
+                const docId = `${busId}_${selectedDate}`;
+                const docRef = doc(db, 'busStatusOverrides', docId);
+                try {
+                    if (status === 'Scheduled') {
+                        await deleteDoc(docRef);
+                    } else {
+                        await setDoc(docRef, {
+                            busId,
+                            date: selectedDate,
+                            depot: userDepot,
+                            status,
+                            updatedAt: serverTimestamp(),
+                            updatedBy: currentUser ? currentUser.uid : null
+                        }, { merge: true });
+                    }
+                } catch (error) {
+                    console.error('Error updating status override:', error);
+                    alert('Unable to update status. Please try again.');
+                }
+            }
 
             // --- ADD UNSCHEDULED BUS ---
             addBusForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const today = new Date().toLocaleString('en-US', { weekday: 'long' });
-                
+                if (!userDepot) return;
+                addBusMessage.textContent = '';
+                addBusMessage.className = 'text-sm font-medium';
+                const isoDate = selectedDate || (scheduleDateInput && scheduleDateInput.value) || formatDate(new Date());
+                const mode = (document.querySelector('input[name="bus-duration"]:checked') || {}).value || 'single-day';
+                const availability = Array.from(addAvailabilityContainer.querySelectorAll('input:checked')).map(cb => cb.value);
+
+                if (mode === 'permanent' && availability.length === 0) {
+                    addBusMessage.textContent = 'Select at least one availability day for permanent buses.';
+                    addBusMessage.className = 'text-sm font-medium text-red-600';
+                    return;
+                }
+
+                const stops = addStopsInput.value
+                    .split('\n')
+                    .map(stop => stop.trim())
+                    .filter(Boolean);
+
                 const newBus = {
-                    route: document.getElementById('add-route').value,
-                    operator: document.getElementById('add-operator').value,
-                    arrivesAt: document.getElementById('add-arrivesAt').value,
-                    departureTime: document.getElementById('add-departureTime').value,
-                    departsFrom: userDepot, // Automatically set to the keeper's depot
-                    availability: [today], // Available only for today
+                    route: addRouteInput.value.trim(),
+                    operator: addOperatorInput.value.trim(),
+                    departsFrom: addDepartsFromInput.value.trim() || userDepot,
+                    arrivesAt: addArrivesAtInput.value.trim(),
+                    departureTime: addDepartureTimeInput.value,
+                    arrivalTime: addArrivalTimeInput.value,
+                    price: addPriceInput.value.trim(),
+                    expresswayEntrance: addExpresswayEntranceInput.value.trim(),
+                    expresswayExit: addExpresswayExitInput.value.trim(),
+                    stops,
+                    availability: mode === 'permanent' ? availability : [],
                     status: 'Scheduled',
-                    // Default other fields to empty or placeholder values
-                    arrivalTime: '', 
-                    price: '',
-                    expresswayEntrance: '',
-                    expresswayExit: '',
-                    stops: [],
-                    sortOrder: 9999 // Place unscheduled buses at the end
+                    sortOrder: 9999,
+                    createdAt: serverTimestamp(),
+                    createdBy: currentUser ? currentUser.uid : null
                 };
 
+                if (mode === 'single-day') {
+                    newBus.specialDates = [isoDate];
+                    newBus.temporary = true;
+                } else {
+                    newBus.specialDates = newBus.specialDates || [];
+                    newBus.temporary = false;
+                }
+
                 try {
-                    await db.collection('buses').add(newBus);
+                    await addDoc(collection(db, 'buses'), newBus);
+                    addBusMessage.textContent = mode === 'single-day'
+                        ? 'Temporary bus added for the selected date.'
+                        : 'Bus added to the timetable.';
+                    addBusMessage.className = 'text-sm font-medium text-green-600';
                     addBusForm.reset();
+                    addDepartsFromInput.value = userDepot || '';
+                    updateSelectedDateLabels(isoDate);
                 } catch (error) {
-                    console.error("Error adding unscheduled bus:", error);
-                    alert("Could not add bus. Please check the console for errors.");
+                    console.error('Error adding bus:', error);
+                    addBusMessage.textContent = 'Could not add bus. Please check the console for details.';
+                    addBusMessage.className = 'text-sm font-medium text-red-600';
                 }
             });
         });
     </script>
 </body>
 </html>
-

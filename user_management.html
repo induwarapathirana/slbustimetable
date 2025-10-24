@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - User Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -101,7 +98,25 @@
         </main>
     </div>
 
-    <script>
+    <script type="module">
+        import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+        import {
+            getAuth,
+            onAuthStateChanged,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import {
+            getFirestore,
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            limit,
+            query,
+            where
+        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
         // This is the correct format. Just paste your values here.
         const firebaseConfig = {
             apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
@@ -120,9 +135,9 @@
                 return;
             }
 
-            const app = firebase.initializeApp(firebaseConfig);
-            const auth = firebase.auth();
-            const db = firebase.firestore();
+            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
 
             // DOM Elements
             const loginScreen = document.getElementById('login-screen');
@@ -139,18 +154,74 @@
 
             let currentUser = null;
 
+            function normalizeRole(role) {
+                return (role || '').toString().trim().toLowerCase();
+            }
+
+            async function fetchUserProfile(user) {
+                if (!user) return null;
+                const email = (user.email || '').trim();
+                const emailLower = email.toLowerCase();
+
+                const usersCollection = collection(db, 'users');
+
+                const tryDoc = async (docId) => {
+                    if (!docId) return null;
+                    const docRef = doc(usersCollection, docId);
+                    const docSnap = await getDoc(docRef);
+                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                };
+
+                try {
+                    let profile = await tryDoc(user.uid);
+                    if (profile) return profile;
+
+                    profile = await tryDoc(email);
+                    if (profile) return profile;
+
+                    if (emailLower !== email) {
+                        profile = await tryDoc(emailLower);
+                        if (profile) return profile;
+                    }
+
+                    if (email) {
+                        let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return { id: docSnap.id, ...docSnap.data() };
+                        }
+
+                        snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return { id: docSnap.id, ...docSnap.data() };
+                        }
+                    }
+
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                    throw error;
+                }
+            }
+
             // --- AUTHENTICATION & ACCESS CONTROL ---
-            auth.onAuthStateChanged(async (user) => {
+            onAuthStateChanged(auth, async (user) => {
                 if (user) {
-                    const userDoc = await db.collection('users').doc(user.uid).get();
-                    if (userDoc.exists && userDoc.data().role === 'admin') {
-                        currentUser = user;
-                        loginScreen.classList.add('hidden');
-                        dashboard.classList.remove('hidden');
-                        loadUsers();
-                    } else {
-                        alert('Access Denied. You must be an administrator to view this page.');
-                        auth.signOut();
+                    try {
+                        const profile = await fetchUserProfile(user);
+                        if (profile && normalizeRole(profile.role) === 'admin') {
+                            currentUser = user;
+                            loginScreen.classList.add('hidden');
+                            dashboard.classList.remove('hidden');
+                            loadUsers();
+                        } else {
+                            alert('Access Denied. You must be an administrator to view this page.');
+                            await signOut(auth);
+                        }
+                    } catch (error) {
+                        alert('Unable to verify your permissions. Please try again later.');
+                        await signOut(auth);
                     }
                 } else {
                     currentUser = null;
@@ -163,13 +234,13 @@
                 e.preventDefault();
                 const email = document.getElementById('email').value;
                 const password = document.getElementById('password').value;
-                auth.signInWithEmailAndPassword(email, password)
+                signInWithEmailAndPassword(auth, email, password)
                     .catch(error => {
                         document.getElementById('login-error').textContent = error.message;
                     });
             });
 
-            logoutButton.addEventListener('click', () => auth.signOut());
+            logoutButton.addEventListener('click', () => signOut(auth));
 
             // Show/hide depot field based on role selection
             newRoleSelect.addEventListener('change', () => {
@@ -183,15 +254,18 @@
                 userTable.classList.add('hidden');
                 
                 try {
-                    const snapshot = await db.collection('users').get();
+                    const snapshot = await getDocs(collection(db, 'users'));
                     userTableBody.innerHTML = '';
                     snapshot.forEach(doc => {
                         const user = doc.data();
+                        const displayEmail = (user.email || user.username || user.name || doc.id || '').toString();
+                        const displayRole = (user.role || user.userRole || '—').toString();
+                        const displayDepot = (user.depot || user.depotName || user.location || 'N/A').toString();
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap">${user.email}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${user.role}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${user.depot || 'N/A'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayEmail}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayRole}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayDepot}</td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <button class="text-red-600 hover:text-red-900 delete-user-btn" data-uid="${doc.id}">Delete</button>
                             </td>
