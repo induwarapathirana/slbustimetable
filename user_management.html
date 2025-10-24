@@ -229,6 +229,7 @@
             }
             return response;
         }
+    }
 
         async function loadUsers() {
             userListLoading.textContent = 'Loading users...';
@@ -376,6 +377,7 @@
                 await handleUnauthorized(error.message || 'Unable to sign in.');
             }
         }
+    }
 
         async function handleLogout() {
             clearSession();
@@ -388,6 +390,10 @@
             }
             showLogin('');
         }
+    }
+
+    async function bootstrap() {
+        toggleDepotField();
 
         async function handleAddUser(event) {
             event.preventDefault();
