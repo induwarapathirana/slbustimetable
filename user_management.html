@@ -18,11 +18,11 @@
             <form id="login-form" class="space-y-4">
                 <div>
                     <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="email" id="email" autocomplete="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                    <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="password" id="password" autocomplete="current-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Login</button>
                 <p id="login-error" class="text-red-500 text-sm text-center"></p>
@@ -93,12 +93,7 @@
 
     <script type="module">
         import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import {
-            getAuth,
-            onAuthStateChanged,
-            signInWithEmailAndPassword,
-            signOut
-        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
         import {
             getFirestore,
             collection,
@@ -184,17 +179,11 @@
                     return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
                 };
 
-                try {
-                    let profile = await tryDoc(user.uid);
-                    if (profile) return profile;
-
-                    profile = await tryDoc(email);
-                    if (profile) return profile;
-
-                    if (emailLower !== email) {
-                        profile = await tryDoc(emailLower);
-                        if (profile) return profile;
-                    }
+            // Re-use an existing Firebase app if another dashboard initialised it;
+            // otherwise create a fresh instance for the user management console.
+            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
 
                     if (email) {
                         let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
@@ -217,23 +206,212 @@
                 }
             }
 
+            function normalizeRole(role) {
+                const value = (role || '').toString().trim().toLowerCase();
+                if (value === 'administrator') return 'admin';
+                if (value === 'timekeepers') return 'timekeeper';
+                return value;
+            }
+
+            function extractRoleFromClaims(claims, allowedRoles) {
+                if (!claims) return '';
+                const sources = [
+                    claims.role,
+                    claims.userRole,
+                    claims.customRole,
+                    ...(Array.isArray(claims.roles) ? claims.roles : []),
+                    ...(Array.isArray(claims.permissions) ? claims.permissions : [])
+                ];
+                for (const entry of sources) {
+                    const normalized = normalizeRole(entry);
+                    if (!normalized) continue;
+                    if (!allowedRoles.length || allowedRoles.includes(normalized)) {
+                        return normalized;
+                    }
+                }
+                return '';
+            }
+
+            async function maybeBackfillEmailLower(usersCollection, profile, emailLower) {
+                if (!profile || !profile.id || !emailLower) return profile;
+                if ((profile.emailLower || '').toString().toLowerCase() === emailLower) {
+                    return profile;
+                }
+                try {
+                    await setDoc(doc(usersCollection, profile.id), { emailLower }, { merge: true });
+                    profile.emailLower = emailLower;
+                } catch (error) {
+                    console.warn('Unable to backfill lowercase email for user profile:', error);
+                }
+                return profile;
+            }
+
+            // Re-use an existing Firebase app if another dashboard initialised it;
+            // otherwise create a fresh instance for the user management console.
+            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            // DOM Elements
+            const loginScreen = document.getElementById('login-screen');
+            const dashboard = document.getElementById('dashboard');
+            const loginForm = document.getElementById('login-form');
+            const logoutButton = document.getElementById('logout-button');
+            const addUserForm = document.getElementById('add-user-form');
+            const addUserMessage = document.getElementById('add-user-message');
+            const userTable = document.getElementById('user-table');
+            const userTableBody = document.getElementById('user-table-body');
+            const userListLoading = document.getElementById('user-list-loading');
+            const newRoleSelect = document.getElementById('new-role');
+            const depotFieldContainer = document.getElementById('depot-field-container');
+
+            let currentUser = null;
+
+            function normalizeRole(role) {
+                const value = (role || '').toString().trim().toLowerCase();
+                if (value === 'administrator') return 'admin';
+                if (value === 'timekeepers') return 'timekeeper';
+                return value;
+            }
+
+            function extractRoleFromClaims(claims, allowedRoles) {
+                if (!claims) return '';
+                const sources = [
+                    claims.role,
+                    claims.userRole,
+                    claims.customRole,
+                    ...(Array.isArray(claims.roles) ? claims.roles : []),
+                    ...(Array.isArray(claims.permissions) ? claims.permissions : [])
+                ];
+                for (const entry of sources) {
+                    const normalized = normalizeRole(entry);
+                    if (!normalized) continue;
+                    if (!allowedRoles.length || allowedRoles.includes(normalized)) {
+                        return normalized;
+                    }
+                }
+                return '';
+            }
+
+            async function maybeBackfillEmailLower(usersCollection, profile, emailLower) {
+                if (!profile || !profile.id || !emailLower) return profile;
+                if ((profile.emailLower || '').toString().toLowerCase() === emailLower) {
+                    return profile;
+                }
+                try {
+                    await setDoc(doc(usersCollection, profile.id), { emailLower }, { merge: true });
+                    profile.emailLower = emailLower;
+                } catch (error) {
+                    console.warn('Unable to backfill lowercase email for user profile:', error);
+                }
+                return profile;
+            }
+
+            async function ensureProfileFromClaims(user, role) {
+                if (!user) return;
+                const usersCollection = collection(db, 'users');
+                const email = (user.email || '').trim();
+                const payload = {
+                    role,
+                    email,
+                    emailLower: email.toLowerCase(),
+                    displayName: user.displayName || '',
+                    syncedFromClaims: true,
+                    updatedAt: serverTimestamp()
+                };
+                try {
+                    await setDoc(doc(usersCollection, user.uid), payload, { merge: true });
+                } catch (error) {
+                    console.warn('Unable to seed Firestore profile from custom claims:', error);
+                }
+            }
+
+            async function resolveRole(user, allowedRoles) {
+                const profile = await fetchUserProfile(user);
+                const profileRole = normalizeRole(profile?.role);
+                if (profileRole && (!allowedRoles.length || allowedRoles.includes(profileRole))) {
+                    return { role: profileRole, profile };
+                }
+
+                try {
+                    const token = await user.getIdTokenResult(true);
+                    const claimRole = extractRoleFromClaims(token?.claims, allowedRoles);
+                    if (claimRole) {
+                        await ensureProfileFromClaims(user, claimRole);
+                        const refreshedProfile = profile || await fetchUserProfile(user);
+                        return { role: claimRole, profile: refreshedProfile || profile };
+                    }
+                } catch (error) {
+                    console.warn('Unable to resolve role from custom claims:', error);
+                }
+
+                return { role: profileRole || null, profile };
+            }
+
+            async function fetchUserProfile(user) {
+                if (!user) return null;
+                const email = (user.email || '').trim();
+                const emailLower = email.toLowerCase();
+
+                const usersCollection = collection(db, 'users');
+
+                const tryDoc = async (docId) => {
+                    if (!docId) return null;
+                    const docRef = doc(usersCollection, docId);
+                    const docSnap = await getDoc(docRef);
+                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                };
+
+                try {
+                    let profile = await tryDoc(user.uid);
+                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
+
+                    profile = await tryDoc(email);
+                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
+
+                    if (emailLower !== email) {
+                        profile = await tryDoc(emailLower);
+                        if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
+                    }
+
+                    if (email) {
+                        let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
+                        }
+
+                        snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
+                        }
+                    }
+
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                    throw error;
+                }
+            }
+
             // --- AUTHENTICATION & ACCESS CONTROL ---
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     try {
-                        const profile = await fetchUserProfile(user);
-                        if (profile && normalizeRole(profile.role) === 'admin') {
+                        const { role } = await resolveRole(user, ['admin']);
+                        if (role === 'admin') {
                             currentUser = user;
                             loginScreen.classList.add('hidden');
                             dashboard.classList.remove('hidden');
                             loadUsers();
                         } else {
                             alert('Access Denied. You must be an administrator to view this page.');
-                            await signOut(auth);
+                            await auth.signOut();
                         }
                     } catch (error) {
                         alert('Unable to verify your permissions. Please try again later.');
-                        await signOut(auth);
+                        await auth.signOut();
                     }
                 } else {
                     currentUser = null;

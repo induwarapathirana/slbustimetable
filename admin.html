@@ -24,11 +24,11 @@
             <form id="login-form" class="space-y-4">
                 <div>
                     <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="email" id="email" autocomplete="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                    <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="password" id="password" autocomplete="current-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Login</button>
                 <p id="login-error" class="text-red-500 text-sm text-center"></p>
@@ -57,6 +57,88 @@
                     <button id="show-add-modal" class="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 shadow">Add Single Bus</button>
                     <button id="show-bulk-add-modal" class="bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-600 shadow">Bulk Add by Frequency</button>
                     <button id="refresh-button" class="bg-slate-200 text-slate-700 py-2 px-4 rounded-md hover:bg-slate-300 shadow">Refresh</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold">Price Matrix</h2>
+                        <p class="text-sm text-gray-500">Maintain reusable fare presets and departure locations for quick bus creation.</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-gray-500">
+                        <span class="inline-flex items-center justify-center w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                        <span>Updates sync instantly with all admin and timekeeper tools.</span>
+                    </div>
+                </div>
+
+                <form id="price-matrix-form" class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <input list="location-options" type="text" id="price-origin" class="w-full p-2 border rounded" placeholder="Origin (e.g., Makumbura)" required>
+                    <input list="location-options" type="text" id="price-destination" class="w-full p-2 border rounded" placeholder="Destination (e.g., Galle)" required>
+                    <input type="text" id="price-amount" class="w-full p-2 border rounded" placeholder="Price (e.g., 1200 LKR)" required>
+                    <div class="flex gap-2">
+                        <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700">Save</button>
+                        <button type="button" id="price-form-reset" class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50">Clear</button>
+                    </div>
+                    <p id="price-form-message" class="md:col-span-2 lg:col-span-1 text-sm font-medium"></p>
+                    <input type="hidden" id="price-entry-id">
+                </form>
+
+                <div id="price-matrix-empty" class="hidden text-center text-gray-500 py-6">No price entries yet. Add your first fare preset above.</div>
+                <div class="overflow-x-auto mt-4">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Origin</th>
+                                <th class="px-4 py-3 text-left">Destination</th>
+                                <th class="px-4 py-3 text-left">Price</th>
+                                <th class="px-4 py-3 text-left">Last Updated</th>
+                                <th class="px-4 py-3 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="price-matrix-body" class="bg-white divide-y divide-gray-200 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold">Price Matrix</h2>
+                        <p class="text-sm text-gray-500">Maintain reusable fare presets and departure locations for quick bus creation.</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-gray-500">
+                        <span class="inline-flex items-center justify-center w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                        <span>Updates sync instantly with all admin and timekeeper tools.</span>
+                    </div>
+                </div>
+
+                <form id="price-matrix-form" class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <input list="location-options" type="text" id="price-origin" class="w-full p-2 border rounded" placeholder="Origin (e.g., Makumbura)" required>
+                    <input list="location-options" type="text" id="price-destination" class="w-full p-2 border rounded" placeholder="Destination (e.g., Galle)" required>
+                    <input type="text" id="price-amount" class="w-full p-2 border rounded" placeholder="Price (e.g., 1200 LKR)" required>
+                    <div class="flex gap-2">
+                        <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700">Save</button>
+                        <button type="button" id="price-form-reset" class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50">Clear</button>
+                    </div>
+                    <p id="price-form-message" class="md:col-span-2 lg:col-span-1 text-sm font-medium"></p>
+                    <input type="hidden" id="price-entry-id">
+                </form>
+
+                <div id="price-matrix-empty" class="hidden text-center text-gray-500 py-6">No price entries yet. Add your first fare preset above.</div>
+                <div class="overflow-x-auto mt-4">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Origin</th>
+                                <th class="px-4 py-3 text-left">Destination</th>
+                                <th class="px-4 py-3 text-left">Price</th>
+                                <th class="px-4 py-3 text-left">Last Updated</th>
+                                <th class="px-4 py-3 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="price-matrix-body" class="bg-white divide-y divide-gray-200 text-sm"></tbody>
+                    </table>
                 </div>
             </div>
 
@@ -394,12 +476,7 @@
 
     <script type="module">
         import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import {
-            getAuth,
-            onAuthStateChanged,
-            signInWithEmailAndPassword,
-            signOut
-        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
         import {
             getFirestore,
             addDoc,
@@ -493,7 +570,84 @@
             const locationSet = new Set();
 
             function normalizeRole(role) {
-                return (role || '').toString().trim().toLowerCase();
+                const value = (role || '').toString().trim().toLowerCase();
+                if (value === 'administrator') return 'admin';
+                if (value === 'timekeepers') return 'timekeeper';
+                return value;
+            }
+
+            function extractRoleFromClaims(claims, allowedRoles) {
+                if (!claims) return '';
+                const sources = [
+                    claims.role,
+                    claims.userRole,
+                    claims.customRole,
+                    ...(Array.isArray(claims.roles) ? claims.roles : []),
+                    ...(Array.isArray(claims.permissions) ? claims.permissions : [])
+                ];
+                for (const entry of sources) {
+                    const normalized = normalizeRole(entry);
+                    if (!normalized) continue;
+                    if (!allowedRoles.length || allowedRoles.includes(normalized)) {
+                        return normalized;
+                    }
+                }
+                return '';
+            }
+
+            async function maybeBackfillEmailLower(usersCollection, profile, emailLower) {
+                if (!profile || !profile.id || !emailLower) return profile;
+                if ((profile.emailLower || '').toString().toLowerCase() === emailLower) {
+                    return profile;
+                }
+                try {
+                    await setDoc(doc(usersCollection, profile.id), { emailLower }, { merge: true });
+                    profile.emailLower = emailLower;
+                } catch (error) {
+                    console.warn('Unable to backfill lowercase email for user profile:', error);
+                }
+                return profile;
+            }
+
+            async function ensureProfileFromClaims(user, role) {
+                if (!user) return;
+                const usersCollection = collection(db, 'users');
+                const email = (user.email || '').trim();
+                const payload = {
+                    role,
+                    email,
+                    emailLower: email.toLowerCase(),
+                    displayName: user.displayName || '',
+                    syncedFromClaims: true,
+                    updatedAt: serverTimestamp()
+                };
+                try {
+                    await setDoc(doc(usersCollection, user.uid), payload, { merge: true });
+                } catch (error) {
+                    console.warn('Unable to seed Firestore profile from custom claims:', error);
+                }
+            }
+
+            async function resolveRole(user, allowedRoles) {
+                const profile = await fetchUserProfile(user);
+                const profileRole = normalizeRole(profile?.role);
+                if (profileRole && (!allowedRoles.length || allowedRoles.includes(profileRole))) {
+                    return { role: profileRole, profile };
+                }
+
+                try {
+                    const token = await user.getIdTokenResult(true);
+                    const claimRole = extractRoleFromClaims(token?.claims, allowedRoles);
+                    if (claimRole) {
+                        await ensureProfileFromClaims(user, claimRole);
+                        const refreshedProfile = profile || await fetchUserProfile(user);
+                        return { role: claimRole, profile: refreshedProfile || profile };
+                    }
+                } catch (error) {
+                    console.warn('Unable to resolve role from custom claims:', error);
+                }
+
+                return { role: profileRole || null, profile };
             }
 
             async function fetchUserProfile(user) {
@@ -512,27 +666,27 @@
 
                 try {
                     let profile = await tryDoc(user.uid);
-                    if (profile) return profile;
+                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
 
                     profile = await tryDoc(email);
-                    if (profile) return profile;
+                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
 
                     if (emailLower !== email) {
                         profile = await tryDoc(emailLower);
-                        if (profile) return profile;
+                        if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
                     }
 
                     if (email) {
                         let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
                         if (!snapshot.empty) {
                             const docSnap = snapshot.docs[0];
-                            return { id: docSnap.id, ...docSnap.data() };
+                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
                         }
 
                         snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
                         if (!snapshot.empty) {
                             const docSnap = snapshot.docs[0];
-                            return { id: docSnap.id, ...docSnap.data() };
+                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
                         }
                     }
 
@@ -547,8 +701,8 @@
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     try {
-                        const profile = await fetchUserProfile(user);
-                        if (profile && normalizeRole(profile.role) === 'admin') {
+                        const { role } = await resolveRole(user, ['admin']);
+                        if (role === 'admin') {
                             currentUser = user;
                             loginScreen.classList.add('hidden');
                             dashboard.classList.remove('hidden');
@@ -556,11 +710,11 @@
                             startPriceMatrixListener();
                         } else {
                             alert('Access Denied. You must be an administrator to view this page.');
-                            await signOut(auth);
+                            await auth.signOut();
                         }
                     } catch (error) {
                         alert('Unable to verify your permissions. Please try again or contact support.');
-                        await signOut(auth);
+                        await auth.signOut();
                     }
                 } else {
                     currentUser = null;
@@ -582,7 +736,7 @@
                     });
             });
 
-            logoutButton.addEventListener('click', () => signOut(auth));
+            logoutButton.addEventListener('click', () => auth.signOut());
 
             // --- DATA HANDLING ---
             function clearPriceMatrixState() {
