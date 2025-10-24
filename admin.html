@@ -1335,22 +1335,8 @@
             return `${hh}:${mm}`;
         }
 
-        loginForm.addEventListener('submit', handleLogin);
-        logoutButton.addEventListener('click', handleLogout);
-        refreshButton.addEventListener('click', loadBuses);
-        showAddModalButton.addEventListener('click', () => openBusModal());
-        closeModalButton.addEventListener('click', closeBusModal);
-        busModal.addEventListener('click', (event) => { if (event.target === busModal) closeBusModal(); });
-        busForm.addEventListener('submit', handleBusSubmit);
-
-        showBulkModalButton.addEventListener('click', openBulkModal);
-        closeBulkModalButton.addEventListener('click', closeBulkModal);
-        bulkModal.addEventListener('click', (event) => { if (event.target === bulkModal) closeBulkModal(); });
-        bulkForm.addEventListener('submit', handleBulkSubmit);
-
         renderAvailabilityCheckboxes(availabilityContainer);
         renderAvailabilityCheckboxes(bulkAvailabilityContainer);
-        toggleView();
     </script>
 </body>
 </html>
