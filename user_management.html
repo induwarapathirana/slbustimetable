@@ -426,17 +426,26 @@
             }
         }
 
-            loginForm.addEventListener('submit', (e) => {
+            loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const email = document.getElementById('email').value;
                 const password = document.getElementById('password').value;
-                signInWithEmailAndPassword(auth, email, password)
-                    .catch(error => {
-                        document.getElementById('login-error').textContent = error.message;
-                    });
+
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                    document.getElementById('login-error').textContent = '';
+                } catch (error) {
+                    document.getElementById('login-error').textContent = error.message;
+                }
             });
 
-            logoutButton.addEventListener('click', () => signOut(auth));
+            logoutButton.addEventListener('click', async () => {
+                try {
+                    await signOut(auth);
+                } catch (error) {
+                    console.error('Failed to sign out:', error);
+                }
+            });
 
             // Show/hide depot field based on role selection
             newRoleSelect.addEventListener('change', () => {
