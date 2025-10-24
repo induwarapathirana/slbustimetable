@@ -377,7 +377,6 @@
                 await handleUnauthorized(error.message || 'Unable to sign in.');
             }
         }
-        }
 
         async function handleLogout() {
             clearSession();
@@ -389,7 +388,6 @@
                 console.warn('Failed to sign out:', error);
             }
             showLogin('');
-        }
         }
 
     async function bootstrap() {
