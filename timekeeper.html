@@ -18,11 +18,11 @@
             <form id="login-form" class="space-y-4">
                 <div>
                     <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="email" id="email" autocomplete="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <div>
                     <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                    <input type="password" id="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
+                    <input type="password" id="password" autocomplete="current-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required>
                 </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Login</button>
                 <p id="login-error" class="text-red-500 text-sm text-center"></p>
@@ -119,12 +119,7 @@
 
     <script type="module">
         import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import {
-            getAuth,
-            onAuthStateChanged,
-            signInWithEmailAndPassword,
-            signOut
-        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
         import {
             getFirestore,
             addDoc,
@@ -222,7 +217,84 @@
             };
 
             function normalizeRole(role) {
-                return (role || '').toString().trim().toLowerCase();
+                const value = (role || '').toString().trim().toLowerCase();
+                if (value === 'administrator') return 'admin';
+                if (value === 'timekeepers') return 'timekeeper';
+                return value;
+            }
+
+            function extractRoleFromClaims(claims, allowedRoles) {
+                if (!claims) return '';
+                const sources = [
+                    claims.role,
+                    claims.userRole,
+                    claims.customRole,
+                    ...(Array.isArray(claims.roles) ? claims.roles : []),
+                    ...(Array.isArray(claims.permissions) ? claims.permissions : [])
+                ];
+                for (const entry of sources) {
+                    const normalized = normalizeRole(entry);
+                    if (!normalized) continue;
+                    if (!allowedRoles.length || allowedRoles.includes(normalized)) {
+                        return normalized;
+                    }
+                }
+                return '';
+            }
+
+            async function maybeBackfillEmailLower(usersCollection, profile, emailLower) {
+                if (!profile || !profile.id || !emailLower) return profile;
+                if ((profile.emailLower || '').toString().toLowerCase() === emailLower) {
+                    return profile;
+                }
+                try {
+                    await setDoc(doc(usersCollection, profile.id), { emailLower }, { merge: true });
+                    profile.emailLower = emailLower;
+                } catch (error) {
+                    console.warn('Unable to backfill lowercase email for user profile:', error);
+                }
+                return profile;
+            }
+
+            async function ensureProfileFromClaims(user, role) {
+                if (!user) return;
+                const usersCollection = collection(db, 'users');
+                const email = (user.email || '').trim();
+                const payload = {
+                    role,
+                    email,
+                    emailLower: email.toLowerCase(),
+                    displayName: user.displayName || '',
+                    syncedFromClaims: true,
+                    updatedAt: serverTimestamp()
+                };
+                try {
+                    await setDoc(doc(usersCollection, user.uid), payload, { merge: true });
+                } catch (error) {
+                    console.warn('Unable to seed Firestore profile from custom claims:', error);
+                }
+            }
+
+            async function resolveRole(user, allowedRoles) {
+                const profile = await fetchUserProfile(user);
+                const profileRole = normalizeRole(profile?.role);
+                if (profileRole && (!allowedRoles.length || allowedRoles.includes(profileRole))) {
+                    return { role: profileRole, profile };
+                }
+
+                try {
+                    const token = await user.getIdTokenResult(true);
+                    const claimRole = extractRoleFromClaims(token?.claims, allowedRoles);
+                    if (claimRole) {
+                        await ensureProfileFromClaims(user, claimRole);
+                        const refreshedProfile = profile || await fetchUserProfile(user);
+                        return { role: claimRole, profile: refreshedProfile || profile };
+                    }
+                } catch (error) {
+                    console.warn('Unable to resolve role from custom claims:', error);
+                }
+
+                return { role: profileRole || null, profile };
             }
 
             async function fetchUserProfile(user) {
@@ -241,27 +313,27 @@
 
                 try {
                     let profile = await tryDoc(user.uid);
-                    if (profile) return profile;
+                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
 
                     profile = await tryDoc(email);
-                    if (profile) return profile;
+                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
 
                     if (emailLower !== email) {
                         profile = await tryDoc(emailLower);
-                        if (profile) return profile;
+                        if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
                     }
 
                     if (email) {
                         let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
                         if (!snapshot.empty) {
                             const docSnap = snapshot.docs[0];
-                            return { id: docSnap.id, ...docSnap.data() };
+                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
                         }
 
                         snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
                         if (!snapshot.empty) {
                             const docSnap = snapshot.docs[0];
-                            return { id: docSnap.id, ...docSnap.data() };
+                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
                         }
                     }
 
@@ -276,10 +348,11 @@
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     try {
-                        const profile = await fetchUserProfile(user);
-                        if (profile && normalizeRole(profile.role) === 'timekeeper') {
+                        const { role, profile } = await resolveRole(user, ['timekeeper', 'admin']);
+                        if (role === 'timekeeper' || role === 'admin') {
                             currentUser = user;
-                            const rawDepot = profile.depot ?? profile.depotName ?? profile.location ?? '';
+                            const activeProfile = profile || await fetchUserProfile(user);
+                            const rawDepot = activeProfile?.depot ?? activeProfile?.depotName ?? activeProfile?.location ?? '';
                             userDepot = rawDepot ? String(rawDepot) : '';
                             depotNameEl.textContent = userDepot || '—';
                             addDepartsFromInput.value = userDepot || '';
@@ -292,12 +365,12 @@
                             loadScheduleForSelectedDate();
                         } else {
                             alert('Access Denied. You must be a Time Keeper to view this page.');
-                            await signOut(auth);
+                            await auth.signOut();
                         }
                     } catch (error) {
                         console.error("Permission error on login:", error);
                         alert('Error verifying your permissions. Please contact an administrator.');
-                        await signOut(auth);
+                        await auth.signOut();
                     }
                 } else {
                     currentUser = null;
@@ -401,7 +474,6 @@
                     locationOptionsList.appendChild(option);
                 });
             }
-        }
 
             function autoFillPriceField() {
                 if (priceAutoFillRegistered) return;
@@ -591,6 +663,24 @@
                 const date = new Date(`${isoDate}T00:00:00`);
                 return date.toLocaleDateString('en-US', { weekday: 'long' });
             }
+
+            function formatHumanDate(isoDate) {
+                const date = new Date(`${isoDate}T00:00:00`);
+                if (Number.isNaN(date.getTime())) return isoDate;
+                return date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+            }
+
+            function formatDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            function getWeekdayName(isoDate) {
+                const date = new Date(`${isoDate}T00:00:00`);
+                return date.toLocaleDateString('en-US', { weekday: 'long' });
+            }
         }
 
             scheduleContainer.addEventListener('click', (e) => {
@@ -612,6 +702,29 @@
             };
             return map[status] || map['Scheduled'];
         }
+
+            async function updateStatusForDate(busId, status) {
+                if (!selectedDate || !busId) return;
+                const docId = `${busId}_${selectedDate}`;
+                const docRef = doc(db, 'busStatusOverrides', docId);
+                try {
+                    if (status === 'Scheduled') {
+                        await deleteDoc(docRef);
+                    } else {
+                        await setDoc(docRef, {
+                            busId,
+                            date: selectedDate,
+                            depot: userDepot,
+                            status,
+                            updatedAt: serverTimestamp(),
+                            updatedBy: currentUser ? currentUser.uid : null
+                        }, { merge: true });
+                    }
+                } catch (error) {
+                    console.error('Error updating status override:', error);
+                    alert('Unable to update status. Please try again.');
+                }
+            }
 
             async function updateStatusForDate(busId, status) {
                 if (!selectedDate || !busId) return;
