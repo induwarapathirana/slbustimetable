@@ -87,13 +87,13 @@
         // Replace only the property values with your Firebase project keys. The
         // modular CDN imports above rely on this object shape remaining intact.
         const firebaseConfig = {
-            apiKey: "AIzaSyATfiFaqfh0leWZMi8pq7OAgb5G7ANBv8o",
-            authDomain: "sl-bus-timetable-app.firebaseapp.com",
-            projectId: "sl-bus-timetable-app",
-            storageBucket: "sl-bus-timetable-app.firebasestorage.app",
-            messagingSenderId: "107324674333",
-            appId: "1:107324674333:web:2058e8958f2c1dfd0c91f4",
-            measurementId: "G-JEBZ0J484N"
+        apiKey: "AIzaSyArXmYmU6l4t_xaNquhT0JUH4sG2ge3tZo",
+        authDomain: "bustimetable-v2.firebaseapp.com",
+        projectId: "bustimetable-v2",
+        storageBucket: "bustimetable-v2.firebasestorage.app",
+        messagingSenderId: "665985152111",
+        appId: "1:665985152111:web:291020ebb619374c4f899a",
+        measurementId: "G-0EEKT7RR6R"
         };
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -116,9 +116,31 @@
             const liveRegion = document.getElementById('live-region');
             const fromInput = document.getElementById('from');
             const toInput = document.getElementById('to');
+            const swapButton = document.getElementById('swap-button');
             const fromSuggestions = document.getElementById('from-suggestions');
             const toSuggestions = document.getElementById('to-suggestions');
             const dateInput = document.getElementById('date');
+            const searchMeta = document.getElementById('search-meta');
+
+            const stored = window.localStorage.getItem('sl-bus-last-search');
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    if (parsed.from) fromInput.value = parsed.from;
+                    if (parsed.to) toInput.value = parsed.to;
+                    if (parsed.date) dateInput.value = parsed.date;
+                } catch (_) {
+                    /* ignore malformed cache */
+                }
+            }
+
+            if (!dateInput.value) {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                dateInput.value = `${yyyy}-${mm}-${dd}`;
+            }
 
             const stored = window.localStorage.getItem('sl-bus-last-search');
             if (stored) {
