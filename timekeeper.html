@@ -749,6 +749,29 @@
                 }
             }
 
+            async function updateStatusForDate(busId, status) {
+                if (!selectedDate || !busId) return;
+                const docId = `${busId}_${selectedDate}`;
+                const docRef = doc(db, 'busStatusOverrides', docId);
+                try {
+                    if (status === 'Scheduled') {
+                        await deleteDoc(docRef);
+                    } else {
+                        await setDoc(docRef, {
+                            busId,
+                            date: selectedDate,
+                            depot: userDepot,
+                            status,
+                            updatedAt: serverTimestamp(),
+                            updatedBy: currentUser ? currentUser.uid : null
+                        }, { merge: true });
+                    }
+                } catch (error) {
+                    console.error('Error updating status override:', error);
+                    alert('Unable to update status. Please try again.');
+                }
+            }
+
             // --- ADD UNSCHEDULED BUS ---
             addBusForm.addEventListener('submit', async (e) => {
                 e.preventDefault();

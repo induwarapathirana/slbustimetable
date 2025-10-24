@@ -246,6 +246,67 @@
                 return profile;
             }
 
+            // Re-use an existing Firebase app if another dashboard initialised it;
+            // otherwise create a fresh instance for the user management console.
+            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+
+            // DOM Elements
+            const loginScreen = document.getElementById('login-screen');
+            const dashboard = document.getElementById('dashboard');
+            const loginForm = document.getElementById('login-form');
+            const logoutButton = document.getElementById('logout-button');
+            const addUserForm = document.getElementById('add-user-form');
+            const addUserMessage = document.getElementById('add-user-message');
+            const userTable = document.getElementById('user-table');
+            const userTableBody = document.getElementById('user-table-body');
+            const userListLoading = document.getElementById('user-list-loading');
+            const newRoleSelect = document.getElementById('new-role');
+            const depotFieldContainer = document.getElementById('depot-field-container');
+
+            let currentUser = null;
+
+            function normalizeRole(role) {
+                const value = (role || '').toString().trim().toLowerCase();
+                if (value === 'administrator') return 'admin';
+                if (value === 'timekeepers') return 'timekeeper';
+                return value;
+            }
+
+            function extractRoleFromClaims(claims, allowedRoles) {
+                if (!claims) return '';
+                const sources = [
+                    claims.role,
+                    claims.userRole,
+                    claims.customRole,
+                    ...(Array.isArray(claims.roles) ? claims.roles : []),
+                    ...(Array.isArray(claims.permissions) ? claims.permissions : [])
+                ];
+                for (const entry of sources) {
+                    const normalized = normalizeRole(entry);
+                    if (!normalized) continue;
+                    if (!allowedRoles.length || allowedRoles.includes(normalized)) {
+                        return normalized;
+                    }
+                }
+                return '';
+            }
+
+            async function maybeBackfillEmailLower(usersCollection, profile, emailLower) {
+                if (!profile || !profile.id || !emailLower) return profile;
+                if ((profile.emailLower || '').toString().toLowerCase() === emailLower) {
+                    return profile;
+                }
+                try {
+                    await setDoc(doc(usersCollection, profile.id), { emailLower }, { merge: true });
+                    profile.emailLower = emailLower;
+                } catch (error) {
+                    console.warn('Unable to backfill lowercase email for user profile:', error);
+                }
+                return profile;
+            }
+
             async function ensureProfileFromClaims(user, role) {
                 if (!user) return;
                 const usersCollection = collection(db, 'users');
