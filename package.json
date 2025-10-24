@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "build": "node -e \"console.log('No build step required')\""
+    "dev": "firebase emulators:start",
+    "build": "echo \"Static site - no build step\""
   },
   "keywords": [],
   "author": "",

@@ -183,6 +183,47 @@
                 </div>
             </div>
 
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold">Price Matrix</h2>
+                        <p class="text-sm text-gray-500">Maintain reusable fare presets and departure locations for quick bus creation.</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-sm text-gray-500">
+                        <span class="inline-flex items-center justify-center w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                        <span>Updates sync instantly with all admin and timekeeper tools.</span>
+                    </div>
+                </div>
+
+                <form id="price-matrix-form" class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <input list="location-options" type="text" id="price-origin" class="w-full p-2 border rounded" placeholder="Origin (e.g., Makumbura)" required>
+                    <input list="location-options" type="text" id="price-destination" class="w-full p-2 border rounded" placeholder="Destination (e.g., Galle)" required>
+                    <input type="text" id="price-amount" class="w-full p-2 border rounded" placeholder="Price (e.g., 1200 LKR)" required>
+                    <div class="flex gap-2">
+                        <button type="submit" class="flex-1 bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700">Save</button>
+                        <button type="button" id="price-form-reset" class="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-50">Clear</button>
+                    </div>
+                    <p id="price-form-message" class="md:col-span-2 lg:col-span-1 text-sm font-medium"></p>
+                    <input type="hidden" id="price-entry-id">
+                </form>
+
+                <div id="price-matrix-empty" class="hidden text-center text-gray-500 py-6">No price entries yet. Add your first fare preset above.</div>
+                <div class="overflow-x-auto mt-4">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Origin</th>
+                                <th class="px-4 py-3 text-left">Destination</th>
+                                <th class="px-4 py-3 text-left">Price</th>
+                                <th class="px-4 py-3 text-left">Last Updated</th>
+                                <th class="px-4 py-3 text-left">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="price-matrix-body" class="bg-white divide-y divide-gray-200 text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="bg-white p-6 rounded-lg shadow-md">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-semibold">Timetable</h3>
@@ -261,6 +302,9 @@
         </main>
     </div>
 
+    <datalist id="location-options"></datalist>
+
+    <!-- Add/Edit Modal -->
     <div id="bus-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
         <div class="relative top-10 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-md bg-white">
             <div class="flex justify-between items-center pb-3">
@@ -273,8 +317,8 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" placeholder="Route (e.g., EX1/01)" id="route" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Operator" id="operator" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Departs From" id="departsFrom" list="locations-list" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Arrives At" id="arrivesAt" list="locations-list" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="departsFrom" class="w-full p-2 border rounded" list="location-options" required>
+                    <input type="text" placeholder="Arrives At" id="arrivesAt" class="w-full p-2 border rounded" list="location-options" required>
                     <input type="time" placeholder="Departure Time" id="departureTime" class="w-full p-2 border rounded" required>
                     <input type="time" placeholder="Arrival Time" id="arrivalTime" class="w-full p-2 border rounded">
                     <input type="text" placeholder="Price (e.g., 1200 LKR)" id="price" class="w-full p-2 border rounded">
@@ -310,8 +354,8 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" placeholder="Route (e.g., EX1)" id="bulk-route" class="w-full p-2 border rounded" required>
                     <input type="text" placeholder="Operator" id="bulk-operator" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Departs From" id="bulk-departsFrom" list="locations-list" class="w-full p-2 border rounded" required>
-                    <input type="text" placeholder="Arrives At" id="bulk-arrivesAt" list="locations-list" class="w-full p-2 border rounded" required>
+                    <input type="text" placeholder="Departs From" id="bulk-departsFrom" class="w-full p-2 border rounded" list="location-options" required>
+                    <input type="text" placeholder="Arrives At" id="bulk-arrivesAt" class="w-full p-2 border rounded" list="location-options" required>
                     <input type="text" placeholder="Price" id="bulk-price" class="w-full p-2 border rounded">
                     <input type="text" placeholder="Expressway Entrance" id="bulk-expresswayEntrance" class="w-full p-2 border rounded">
                     <input type="text" placeholder="Expressway Exit" id="bulk-expresswayExit" class="w-full p-2 border rounded">
@@ -348,17 +392,37 @@
         </div>
     </div>
 
-    <datalist id="locations-list"></datalist>
+    <script type="module">
+        import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+        import {
+            getAuth,
+            onAuthStateChanged,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import {
+            getFirestore,
+            addDoc,
+            collection,
+            deleteDoc,
+            doc,
+            getDoc,
+            getDocs,
+            limit,
+            onSnapshot,
+            orderBy,
+            query,
+            serverTimestamp,
+            setDoc,
+            updateDoc,
+            where,
+            writeBatch
+        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-    <script>
-        // Import the functions you need from the SDKs you need
-        import { initializeApp } from "firebase/app";
-        import { getAnalytics } from "firebase/analytics";
-        // TODO: Add SDKs for Firebase products that you want to use
-        // https://firebase.google.com/docs/web/setup#available-libraries
-
-        // Your web app's Firebase configuration
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        // This is the correct format. Just paste your values here.
+        // --- Firebase bootstrap -------------------------------------------------
+        // Paste your Firebase console configuration below. Only change the values
+        // on the right-hand side so the modular SDK imports continue to work.
         const firebaseConfig = {
         apiKey: "AIzaSyArXmYmU6l4t_xaNquhT0JUH4sG2ge3tZo",
         authDomain: "bustimetable-v2.firebaseapp.com",
@@ -369,214 +433,429 @@
         measurementId: "G-0EEKT7RR6R"
         };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const TOKEN_KEY = 'slbustimetable:token';
-        const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-        const state = {
-            token: localStorage.getItem(TOKEN_KEY) || null,
-            buses: [],
-            sortable: null,
-        };
-
-        const loginScreen = document.getElementById('login-screen');
-        const dashboard = document.getElementById('dashboard');
-        const loginForm = document.getElementById('login-form');
-        const loginError = document.getElementById('login-error');
-        const logoutButton = document.getElementById('logout-button');
-        const refreshButton = document.getElementById('refresh-button');
-        const busListContainer = document.getElementById('bus-list-container');
-        const busTableBody = document.getElementById('bus-table-body');
-        const loading = document.getElementById('loading');
-        const emptyState = document.getElementById('bus-empty-state');
-        const lastUpdated = document.getElementById('last-updated');
-
-        const busModal = document.getElementById('bus-modal');
-        const closeModalButton = document.getElementById('close-modal');
-        const showAddModalButton = document.getElementById('show-add-modal');
-        const busForm = document.getElementById('bus-form');
-        const modalTitle = document.getElementById('modal-title');
-        const formError = document.getElementById('form-error');
-        const busIdInput = document.getElementById('bus-id');
-        const availabilityContainer = document.getElementById('availability-checkboxes');
-        const stopsTextarea = document.getElementById('stops');
-
-        const bulkModal = document.getElementById('bulk-add-modal');
-        const showBulkModalButton = document.getElementById('show-bulk-add-modal');
-        const closeBulkModalButton = document.getElementById('close-bulk-modal');
-        const bulkForm = document.getElementById('bulk-bus-form');
-        const bulkAvailabilityContainer = document.getElementById('bulk-availability-checkboxes');
-        const bulkStopsTextarea = document.getElementById('bulk-stops');
-        const bulkMessage = document.getElementById('bulk-add-message');
-
-        const busFields = ['route', 'operator', 'departsFrom', 'arrivesAt', 'departureTime', 'arrivalTime', 'price', 'expresswayEntrance', 'expresswayExit'];
-
-        function toggleView() {
-            const isAuthenticated = Boolean(state.token);
-            if (isAuthenticated) {
-                loginScreen.classList.add('hidden');
-                dashboard.classList.remove('hidden');
-                loadBuses();
-            } else {
-                loginScreen.classList.remove('hidden');
-                dashboard.classList.add('hidden');
+        // --- SCRIPT INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Abort early and surface a friendly message if a developer forgets to
+            // populate the Firebase configuration. This keeps the UI from failing
+            // silently when testing on a fresh clone of the repository.
+            if (!firebaseConfig.apiKey) {
+                document.getElementById('config-warning').classList.remove('hidden');
+                return;
             }
         }
 
-        async function fetchWithAuth(url, options = {}) {
-            const headers = new Headers(options.headers || {});
-            if (!(options.body instanceof FormData)) {
-                headers.set('Content-Type', 'application/json');
-            }
-            if (state.token) {
-                headers.set('Authorization', `Bearer ${state.token}`);
-            }
-            const response = await fetch(url, { ...options, headers });
-            if (response.status === 401) {
-                handleLogout();
-                throw new Error('Unauthorized');
-            }
-            return response;
-        }
+            // Re-use any existing Firebase app (important for live-reload flows)
+            // or create a new one when the admin dashboard boots for the first time.
+            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
 
-        function renderAvailabilityCheckboxes(container) {
-            container.innerHTML = '';
-            DAYS.forEach(day => {
-                const id = `${container.id}-${day}`;
-                const wrapper = document.createElement('label');
-                wrapper.className = 'flex items-center gap-2 text-sm';
-                wrapper.innerHTML = `
-                    <input type="checkbox" value="${day}" id="${id}" class="rounded text-indigo-600 focus:ring-indigo-500">
-                    <span>${day}</span>`;
-                container.appendChild(wrapper);
+            // DOM Elements
+            const loginScreen = document.getElementById('login-screen');
+            const dashboard = document.getElementById('dashboard');
+            const loginForm = document.getElementById('login-form');
+            const logoutButton = document.getElementById('logout-button');
+            const busListContainer = document.getElementById('bus-list-container');
+            const loading = document.getElementById('loading');
+
+            const busModal = document.getElementById('bus-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const closeModal = document.getElementById('close-modal');
+            const showAddModal = document.getElementById('show-add-modal');
+            const busForm = document.getElementById('bus-form');
+            
+            const bulkAddModal = document.getElementById('bulk-add-modal');
+            const showBulkAddModal = document.getElementById('show-bulk-add-modal');
+            const closeBulkModal = document.getElementById('close-bulk-modal');
+            const bulkBusForm = document.getElementById('bulk-bus-form');
+            const bulkAddMessage = document.getElementById('bulk-add-message');
+
+            const priceForm = document.getElementById('price-matrix-form');
+            const priceOriginInput = document.getElementById('price-origin');
+            const priceDestinationInput = document.getElementById('price-destination');
+            const priceAmountInput = document.getElementById('price-amount');
+            const priceEntryIdInput = document.getElementById('price-entry-id');
+            const priceFormMessage = document.getElementById('price-form-message');
+            const priceFormReset = document.getElementById('price-form-reset');
+            const priceMatrixBody = document.getElementById('price-matrix-body');
+            const priceMatrixEmpty = document.getElementById('price-matrix-empty');
+            const locationOptionsList = document.getElementById('location-options');
+
+            const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+            let currentUser = null;
+            let unsubscribe = null;
+            let priceMatrixUnsubscribe = null;
+            let priceAutoFillRegistered = false;
+
+            const priceLookup = new Map();
+            const priceEntryByKey = new Map();
+            const locationSet = new Set();
+
+            function normalizeRole(role) {
+                return (role || '').toString().trim().toLowerCase();
+            }
+
+            async function fetchUserProfile(user) {
+                if (!user) return null;
+                const email = (user.email || '').trim();
+                const emailLower = email.toLowerCase();
+
+                const usersCollection = collection(db, 'users');
+
+                const tryDoc = async (docId) => {
+                    if (!docId) return null;
+                    const docRef = doc(usersCollection, docId);
+                    const docSnap = await getDoc(docRef);
+                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                };
+
+                try {
+                    let profile = await tryDoc(user.uid);
+                    if (profile) return profile;
+
+                    profile = await tryDoc(email);
+                    if (profile) return profile;
+
+                    if (emailLower !== email) {
+                        profile = await tryDoc(emailLower);
+                        if (profile) return profile;
+                    }
+
+                    if (email) {
+                        let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return { id: docSnap.id, ...docSnap.data() };
+                        }
+
+                        snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return { id: docSnap.id, ...docSnap.data() };
+                        }
+                    }
+
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                    throw error;
+                }
+            }
+
+            // --- AUTHENTICATION & ACCESS CONTROL ---
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    try {
+                        const profile = await fetchUserProfile(user);
+                        if (profile && normalizeRole(profile.role) === 'admin') {
+                            currentUser = user;
+                            loginScreen.classList.add('hidden');
+                            dashboard.classList.remove('hidden');
+                            loadBuses();
+                            startPriceMatrixListener();
+                        } else {
+                            alert('Access Denied. You must be an administrator to view this page.');
+                            await signOut(auth);
+                        }
+                    } catch (error) {
+                        alert('Unable to verify your permissions. Please try again or contact support.');
+                        await signOut(auth);
+                    }
+                } else {
+                    currentUser = null;
+                    loginScreen.classList.remove('hidden');
+                    dashboard.classList.add('hidden');
+                    if (unsubscribe) unsubscribe();
+                    if (priceMatrixUnsubscribe) priceMatrixUnsubscribe();
+                    clearPriceMatrixState();
+                }
             });
         }
 
-        function getSelectedDays(container) {
-            return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(input => input.value);
-        }
-
-        function setSelectedDays(container, days = []) {
-            const values = new Set(days);
-            container.querySelectorAll('input[type="checkbox"]').forEach(input => {
-                input.checked = values.has(input.value);
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                signInWithEmailAndPassword(auth, email, password)
+                    .catch(error => {
+                        document.getElementById('login-error').textContent = error.message;
+                    });
             });
-        }
 
-        function openBusModal(bus = null) {
-            modalTitle.textContent = bus ? 'Edit Bus' : 'Add New Bus';
-            formError.textContent = '';
-            busIdInput.value = bus ? bus.id : '';
-            busFields.forEach(field => {
-                const input = document.getElementById(field);
-                input.value = bus && bus[field] ? bus[field] : '';
-            });
-            stopsTextarea.value = bus && Array.isArray(bus.stops) ? bus.stops.join('
-') : '';
-            setSelectedDays(availabilityContainer, bus ? bus.availability : []);
-            busModal.classList.remove('hidden');
-        }
+            logoutButton.addEventListener('click', () => signOut(auth));
 
-        function closeBusModal() {
-            busModal.classList.add('hidden');
-        }
+            // --- DATA HANDLING ---
+            function clearPriceMatrixState() {
+                priceLookup.clear();
+                locationSet.clear();
+                updateLocationOptions();
+                renderPriceMatrix([]);
+                priceFormMessage.textContent = '';
+                priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium';
+                priceEntryIdInput.value = '';
+                priceAutoFillRegistered = false;
+            }
 
-        function openBulkModal() {
-            bulkForm.reset();
-            bulkMessage.textContent = '';
-            bulkStopsTextarea.value = '';
-            setSelectedDays(bulkAvailabilityContainer, []);
-            bulkModal.classList.remove('hidden');
-        }
+            function startPriceMatrixListener() {
+                if (priceMatrixUnsubscribe) priceMatrixUnsubscribe();
+                const priceMatrixQuery = query(collection(db, 'priceMatrix'), orderBy('origin'));
+                priceMatrixUnsubscribe = onSnapshot(priceMatrixQuery, snapshot => {
+                    const entries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    refreshPriceMatrix(entries);
+                }, error => {
+                    console.error('Error loading price matrix:', error);
+                    priceFormMessage.textContent = 'Unable to load price matrix. Check console logs.';
+                    priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-red-600';
+                });
+            }
 
-        function closeBulkModal() {
-            bulkModal.classList.add('hidden');
-        }
+            function refreshPriceMatrix(entries) {
+                priceLookup.clear();
+                priceEntryByKey.clear();
+                locationSet.clear();
+                entries.forEach(entry => {
+                    const origin = (entry.origin || '').trim();
+                    const destination = (entry.destination || '').trim();
+                    if (!origin || !destination) return;
+                    locationSet.add(origin);
+                    locationSet.add(destination);
+                    const key = `${origin.toLowerCase()}__${destination.toLowerCase()}`;
+                    priceLookup.set(key, entry.price || '');
+                    priceEntryByKey.set(key, entry.id);
+                });
+                updateLocationOptions();
+                renderPriceMatrix(entries);
+                autoFillPriceFields();
+            }
 
-        async function handleLogin(event) {
-            event.preventDefault();
-            loginError.textContent = '';
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+            function updateLocationOptions() {
+                if (!locationOptionsList) return;
+                locationOptionsList.innerHTML = '';
+                Array.from(locationSet).sort((a, b) => a.localeCompare(b)).forEach(location => {
+                    const option = document.createElement('option');
+                    option.value = location;
+                    locationOptionsList.appendChild(option);
+                });
+            }
+
+            function renderPriceMatrix(entries) {
+                priceMatrixBody.innerHTML = '';
+                if (!entries.length) {
+                    priceMatrixEmpty.classList.remove('hidden');
+                    return;
+                }
+                priceMatrixEmpty.classList.add('hidden');
+                entries.forEach(entry => {
+                    const tr = document.createElement('tr');
+                    tr.dataset.id = entry.id;
+                    tr.innerHTML = `
+                        <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-800">${entry.origin}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-gray-700">${entry.destination}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-indigo-600 font-semibold">${entry.price || '—'}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-500">${entry.updatedAt ? new Date(entry.updatedAt.seconds ? entry.updatedAt.seconds * 1000 : entry.updatedAt).toLocaleString() : '—'}</td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <button class="text-indigo-600 hover:text-indigo-900 price-edit" data-id="${entry.id}">Edit</button>
+                            <button class="text-red-600 hover:text-red-900 price-delete ml-4" data-id="${entry.id}">Delete</button>
+                        </td>`;
+                    priceMatrixBody.appendChild(tr);
+                });
+            }
+
+            function autoFillPriceFields() {
+                if (priceAutoFillRegistered) return;
+                const pricePairs = [
+                    {
+                        origin: document.getElementById('departsFrom'),
+                        destination: document.getElementById('arrivesAt'),
+                        price: document.getElementById('price')
+                    },
+                    {
+                        origin: document.getElementById('bulk-departsFrom'),
+                        destination: document.getElementById('bulk-arrivesAt'),
+                        price: document.getElementById('bulk-price')
+                    }
+                ].filter(pair => pair.origin && pair.destination && pair.price);
+
+                pricePairs.forEach(pair => {
+                    if (!pair.price.dataset) pair.price.dataset = {};
+                    pair.price.addEventListener('input', () => {
+                        pair.price.dataset.autofilled = 'false';
+                    });
+                    ['change', 'blur'].forEach(evt => {
+                        pair.origin.addEventListener(evt, () => maybeFillPrice(pair));
+                        pair.destination.addEventListener(evt, () => maybeFillPrice(pair));
+                    });
+                });
+                priceAutoFillRegistered = true;
+            }
+
+            function maybeFillPrice({ origin, destination, price }) {
+                const originVal = origin.value.trim();
+                const destinationVal = destination.value.trim();
+                if (!originVal || !destinationVal) return;
+                const key = `${originVal.toLowerCase()}__${destinationVal.toLowerCase()}`;
+                if (!priceLookup.has(key)) return;
+                if (!price.value.trim() || price.dataset.autofilled === 'true') {
+                    price.value = priceLookup.get(key);
+                    price.dataset.autofilled = 'true';
+                }
+            }
+
+            if (priceForm) {
+                priceForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const origin = priceOriginInput.value.trim();
+                    const destination = priceDestinationInput.value.trim();
+                    const priceValue = priceAmountInput.value.trim();
+
+                    if (!origin || !destination || !priceValue) {
+                        priceFormMessage.textContent = 'Please complete all fields.';
+                        priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-red-600';
+                        return;
+                    }
+
+                    const payload = {
+                        origin,
+                        destination,
+                        price: priceValue,
+                        updatedAt: serverTimestamp(),
+                        updatedBy: currentUser ? currentUser.uid : null
+                    };
+
+                    try {
+                        if (priceEntryIdInput.value) {
+                            await setDoc(doc(db, 'priceMatrix', priceEntryIdInput.value), payload, { merge: true });
+                            priceFormMessage.textContent = 'Price entry updated.';
+                        } else {
+                            const key = `${origin.toLowerCase()}__${destination.toLowerCase()}`;
+                            const existingId = priceEntryByKey.get(key);
+                            if (existingId) {
+                                await setDoc(doc(db, 'priceMatrix', existingId), payload, { merge: true });
+                                priceFormMessage.textContent = 'Existing price updated.';
+                            } else {
+                                await addDoc(collection(db, 'priceMatrix'), payload);
+                                priceFormMessage.textContent = 'Price entry saved.';
+                            }
+                        }
+                        priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-green-600';
+                        priceForm.reset();
+                        priceEntryIdInput.value = '';
+                        priceAmountInput.dataset.autofilled = 'false';
+                    } catch (error) {
+                        console.error('Error saving price entry:', error);
+                        priceFormMessage.textContent = 'Failed to save price entry. Try again.';
+                        priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-red-600';
+                    }
+                });
+
+                priceFormReset.addEventListener('click', () => {
+                    priceForm.reset();
+                    priceEntryIdInput.value = '';
+                    priceFormMessage.textContent = '';
+                    priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium';
+                });
+
+                priceMatrixBody.addEventListener('click', async (event) => {
+                    const rowId = event.target.dataset.id;
+                    if (!rowId) return;
+
+                    if (event.target.classList.contains('price-edit')) {
+                        const docRef = doc(db, 'priceMatrix', rowId);
+                        const docSnap = await getDoc(docRef);
+                        if (!docSnap.exists()) return;
+                        const data = docSnap.data();
+                        priceOriginInput.value = data.origin || '';
+                        priceDestinationInput.value = data.destination || '';
+                        priceAmountInput.value = data.price || '';
+                        priceEntryIdInput.value = rowId;
+                        priceFormMessage.textContent = 'Editing existing entry. Save to update or Clear to cancel.';
+                        priceFormMessage.className = 'md:col-span-2 lg:col-span-1 text-sm font-medium text-indigo-600';
+                    }
+
+                    if (event.target.classList.contains('price-delete')) {
+                        if (confirm('Delete this price entry?')) {
+                            await deleteDoc(doc(db, 'priceMatrix', rowId));
+                        }
+                    }
+                });
+            }
+
+            function loadBuses() {
+                if (unsubscribe) unsubscribe(); // Detach previous listener
+                const busesQuery = query(collection(db, 'buses'), orderBy('sortOrder'));
+                unsubscribe = onSnapshot(busesQuery, snapshot => {
+                    loading.style.display = 'none';
+                    const buses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderBusTable(buses);
+                }, error => {
+                    console.error("Error fetching buses:", error);
+                    loading.textContent = "Error loading data. Check console.";
                 });
                 const data = await response.json();
                 if (!response.ok) {
                     throw new Error(data.message || 'Login failed');
                 }
-                state.token = data.token;
-                localStorage.setItem(TOKEN_KEY, data.token);
-                toggleView();
-            } catch (error) {
-                loginError.textContent = error.message;
+                const table = document.createElement('table');
+                table.className = 'min-w-full divide-y divide-gray-200';
+                table.innerHTML = `
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From &rarr; To</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bus-table-body" class="bg-white divide-y divide-gray-200"></tbody>`;
+                busListContainer.appendChild(table);
+                const tbody = document.getElementById('bus-table-body');
+                
+                buses.forEach(bus => {
+                    const tr = document.createElement('tr');
+                    tr.dataset.id = bus.id;
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap"><span class="font-bold">${bus.route}</span><br><span class="text-sm text-gray-500">${bus.operator}</span></td>
+                        <td class="px-6 py-4 whitespace-nowrap">${bus.departsFrom}<br>${bus.arrivesAt}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${bus.departureTime}<br>${bus.arrivalTime}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-xs">${(bus.availability || []).join(', ')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-indigo-600 hover:text-indigo-900 edit-btn" data-id="${bus.id}">Edit</button>
+                            <button class="text-red-600 hover:text-red-900 ml-4 delete-btn" data-id="${bus.id}">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                // Init SortableJS for drag-and-drop
+                new Sortable(tbody, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    onEnd: async (evt) => {
+                        const orderedIds = Array.from(evt.target.children).map(child => child.dataset.id);
+                        const batch = writeBatch(db);
+                        orderedIds.forEach((id, index) => {
+                            const docRef = doc(db, 'buses', id);
+                            batch.update(docRef, { sortOrder: index });
+                        });
+                        await batch.commit();
+                    }
+                });
             }
-        }
 
-        function handleLogout() {
-            state.token = null;
-            localStorage.removeItem(TOKEN_KEY);
-            toggleView();
-        }
-
-        async function loadBuses() {
-            loading.classList.remove('hidden');
-            busListContainer.classList.add('hidden');
-            emptyState.classList.add('hidden');
-            try {
-                const response = await fetchWithAuth('/api/buses');
-                if (!response.ok) throw new Error('Failed to load buses');
-                const data = await response.json();
-                state.buses = data;
-                renderBusTable();
-            } catch (error) {
-                console.error(error);
-                loading.textContent = 'Failed to load buses. Please refresh.';
-            }
-        }
-
-        function renderBusTable() {
-            loading.classList.add('hidden');
-            busTableBody.innerHTML = '';
-            if (state.buses.length === 0) {
-                emptyState.classList.remove('hidden');
-                busListContainer.classList.add('hidden');
-                lastUpdated.textContent = '';
-                return;
-            }
-            emptyState.classList.add('hidden');
-            busListContainer.classList.remove('hidden');
-            lastUpdated.textContent = `Updated ${new Date().toLocaleString()}`;
-
-            state.buses.forEach((bus, index) => {
-                const row = document.createElement('tr');
-                row.dataset.id = bus.id;
-                row.innerHTML = `
-                    <td class="px-4 py-2 text-sm text-gray-500 cursor-move">${index + 1}</td>
-                    <td class="px-4 py-2">
-                        <div class="font-semibold">${bus.route}</div>
-                        <div class="text-sm text-gray-500">${bus.operator}</div>
-                    </td>
-                    <td class="px-4 py-2 text-sm text-gray-600">
-                        <div>${bus.departsFrom}</div>
-                        <div class="font-semibold text-indigo-600">${bus.departureTime}</div>
-                    </td>
-                    <td class="px-4 py-2 text-sm text-gray-600">
-                        <div>${bus.arrivesAt}</div>
-                        <div class="font-semibold">${bus.arrivalTime || '—'}</div>
-                    </td>
-                    <td class="px-4 py-2 text-sm text-gray-500">${Array.isArray(bus.availability) && bus.availability.length ? bus.availability.join(', ') : 'Daily'}</td>
-                    <td class="px-4 py-2 text-sm">${renderStatusPill(bus.status)}</td>
-                    <td class="px-4 py-2 text-right text-sm">
-                        <button class="edit-btn text-indigo-600 hover:underline mr-3" data-id="${bus.id}">Edit</button>
-                        <button class="delete-btn text-red-600 hover:underline" data-id="${bus.id}">Delete</button>
-                    </td>`;
-                busTableBody.appendChild(row);
+            busListContainer.addEventListener('click', async (e) => {
+                const busId = e.target.dataset.id;
+                if (e.target.classList.contains('edit-btn')) {
+                    const docRef = doc(db, 'buses', busId);
+                    const docSnap = await getDoc(docRef);
+                    openModal('Edit Bus', docSnap.data(), busId);
+                }
+                if (e.target.classList.contains('delete-btn')) {
+                    if (confirm('Are you sure you want to delete this bus?')) {
+                        await deleteDoc(doc(db, 'buses', busId));
+                    }
+                }
             });
 
             if (state.sortable) {
@@ -631,25 +910,43 @@
                     method,
                     body: JSON.stringify(payload)
                 });
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error((data.errors && data.errors.join(', ')) || data.message || 'Failed to save bus');
-                }
-                closeBusModal();
-                await loadBuses();
-            } catch (error) {
-                formError.textContent = error.message;
-            }
-        }
+            };
+            
+            setupCheckboxes('availability-checkboxes');
+            setupCheckboxes('bulk-availability-checkboxes');
 
-        function collectBusFormData() {
-            const payload = {};
-            let valid = true;
-            busFields.forEach(field => {
-                const input = document.getElementById(field);
-                payload[field] = input.value.trim();
-                if (['route', 'operator', 'departsFrom', 'arrivesAt', 'departureTime'].includes(field) && !payload[field]) {
-                    valid = false;
+            showAddModal.addEventListener('click', () => openModal('Add New Bus'));
+            closeModal.addEventListener('click', () => busModal.classList.add('hidden'));
+            
+            busForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const busId = busForm['bus-id'].value;
+                const stops = busForm.stops.value.split('\n').map(s => s.trim()).filter(Boolean);
+                const availability = Array.from(document.querySelectorAll('#availability-checkboxes input:checked'))
+                                       .map(cb => cb.value).filter(v => daysOfWeek.includes(v));
+
+                const busData = {
+                    route: busForm.route.value,
+                    operator: busForm.operator.value,
+                    departsFrom: busForm.departsFrom.value,
+                    arrivesAt: busForm.arrivesAt.value,
+                    departureTime: busForm.departureTime.value,
+                    arrivalTime: busForm.arrivalTime.value,
+                    price: busForm.price.value,
+                    expresswayEntrance: busForm.expresswayEntrance.value,
+                    expresswayExit: busForm.expresswayExit.value,
+                    stops,
+                    availability
+                };
+
+                if (busId) {
+                    await updateDoc(doc(db, 'buses', busId), busData);
+                } else {
+                    const latestSnapshot = await getDocs(query(collection(db, 'buses'), orderBy('sortOrder', 'desc'), limit(1)));
+                    const maxOrder = latestSnapshot.empty ? -1 : latestSnapshot.docs[0].data().sortOrder;
+                    busData.sortOrder = maxOrder + 1;
+                    busData.status = 'Scheduled'; // Default status for new buses
+                    await addDoc(collection(db, 'buses'), busData);
                 }
             });
             if (!valid) {
@@ -734,13 +1031,36 @@
                         availability,
                         stops
                     };
-                    const response = await fetchWithAuth('/api/buses', {
-                        method: 'POST',
-                        body: JSON.stringify(payload)
-                    });
-                    if (!response.ok) {
-                        const data = await response.json();
-                        throw new Error(data.message || 'Failed to create one of the buses');
+                    const routeBase = document.getElementById('bulk-route').value;
+                    const startTime = document.getElementById('bulk-startTime').value;
+                    const endTime = document.getElementById('bulk-endTime').value;
+                    const frequency = parseInt(document.getElementById('bulk-frequency').value, 10);
+                    const duration = parseInt(document.getElementById('bulk-duration').value, 10);
+
+                    if (!startTime || !endTime || isNaN(frequency) || isNaN(duration) || frequency <= 0) {
+                        throw new Error("Please fill in all time and frequency fields correctly.");
+                    }
+                    
+                    const startMinutes = timeToMinutes(startTime);
+                    const endMinutes = timeToMinutes(endTime);
+                    
+                    const batch = writeBatch(db);
+                    let busCount = 0;
+                    const latestSnapshot = await getDocs(query(collection(db, 'buses'), orderBy('sortOrder', 'desc'), limit(1)));
+                    let currentSortOrder = latestSnapshot.empty ? 0 : latestSnapshot.docs[0].data().sortOrder + 1;
+
+                    for (let depMinutes = startMinutes; depMinutes <= endMinutes; depMinutes += frequency) {
+                        const arrMinutes = depMinutes + duration;
+                        const newBus = {
+                            ...commonData,
+                            route: `${routeBase}/${String(busCount + 1).padStart(2, '0')}`,
+                            departureTime: minutesToTime(depMinutes),
+                            arrivalTime: minutesToTime(arrMinutes),
+                            sortOrder: currentSortOrder++
+                        };
+                        const newDocRef = doc(collection(db, 'buses'));
+                        batch.set(newDocRef, newBus);
+                        busCount++;
                     }
                 }
                 bulkMessage.textContent = `Added ${departures.length} departures.`;

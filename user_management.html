@@ -91,15 +91,29 @@
         </main>
     </div>
 
-    <script>
-        // Import the functions you need from the SDKs you need
-        import { initializeApp } from "firebase/app";
-        import { getAnalytics } from "firebase/analytics";
-        // TODO: Add SDKs for Firebase products that you want to use
-        // https://firebase.google.com/docs/web/setup#available-libraries
+    <script type="module">
+        import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+        import {
+            getAuth,
+            onAuthStateChanged,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import {
+            getFirestore,
+            collection,
+            doc,
+            getDoc,
+            getDocs,
+            limit,
+            query,
+            where
+        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-        // Your web app's Firebase configuration
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        // This is the correct format. Just paste your values here.
+        // --- Firebase bootstrap -------------------------------------------------
+        // Paste your Firebase project configuration here. Keeping the same keys
+        // ensures the user provisioning helpers keep working without edits.
         const firebaseConfig = {
         apiKey: "AIzaSyArXmYmU6l4t_xaNquhT0JUH4sG2ge3tZo",
         authDomain: "bustimetable-v2.firebaseapp.com",
@@ -120,19 +134,11 @@
             users: []
         };
 
-        const loginScreen = document.getElementById('login-screen');
-        const dashboard = document.getElementById('dashboard');
-        const loginForm = document.getElementById('login-form');
-        const loginError = document.getElementById('login-error');
-        const logoutButton = document.getElementById('logout-button');
-        const addUserForm = document.getElementById('add-user-form');
-        const addUserMessage = document.getElementById('add-user-message');
-        const userTable = document.getElementById('user-table');
-        const userTableBody = document.getElementById('user-table-body');
-        const userListLoading = document.getElementById('user-list-loading');
-        const newRoleSelect = document.getElementById('new-role');
-        const depotFieldContainer = document.getElementById('depot-field-container');
-        const newDepotInput = document.getElementById('new-depot');
+            // Re-use an existing Firebase app if another dashboard initialised it;
+            // otherwise create a fresh instance for the user management console.
+            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
 
         function toggleView() {
             const isAuthenticated = Boolean(state.token);
@@ -160,16 +166,79 @@
             return response;
         }
 
-        async function fetchProfile() {
-            try {
-                const response = await fetchWithAuth('/api/me');
-                if (!response.ok) throw new Error('Failed to load profile');
-                const data = await response.json();
-                state.currentUser = data;
-                if (data.role !== 'admin') {
-                    alert('Only administrators can manage users.');
-                    handleLogout();
-                    return;
+            function normalizeRole(role) {
+                return (role || '').toString().trim().toLowerCase();
+            }
+
+            async function fetchUserProfile(user) {
+                if (!user) return null;
+                const email = (user.email || '').trim();
+                const emailLower = email.toLowerCase();
+
+                const usersCollection = collection(db, 'users');
+
+                const tryDoc = async (docId) => {
+                    if (!docId) return null;
+                    const docRef = doc(usersCollection, docId);
+                    const docSnap = await getDoc(docRef);
+                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+                };
+
+                try {
+                    let profile = await tryDoc(user.uid);
+                    if (profile) return profile;
+
+                    profile = await tryDoc(email);
+                    if (profile) return profile;
+
+                    if (emailLower !== email) {
+                        profile = await tryDoc(emailLower);
+                        if (profile) return profile;
+                    }
+
+                    if (email) {
+                        let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return { id: docSnap.id, ...docSnap.data() };
+                        }
+
+                        snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
+                        if (!snapshot.empty) {
+                            const docSnap = snapshot.docs[0];
+                            return { id: docSnap.id, ...docSnap.data() };
+                        }
+                    }
+
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching user profile:', error);
+                    throw error;
+                }
+            }
+
+            // --- AUTHENTICATION & ACCESS CONTROL ---
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    try {
+                        const profile = await fetchUserProfile(user);
+                        if (profile && normalizeRole(profile.role) === 'admin') {
+                            currentUser = user;
+                            loginScreen.classList.add('hidden');
+                            dashboard.classList.remove('hidden');
+                            loadUsers();
+                        } else {
+                            alert('Access Denied. You must be an administrator to view this page.');
+                            await signOut(auth);
+                        }
+                    } catch (error) {
+                        alert('Unable to verify your permissions. Please try again later.');
+                        await signOut(auth);
+                    }
+                } else {
+                    currentUser = null;
+                    loginScreen.classList.remove('hidden');
+                    dashboard.classList.add('hidden');
                 }
                 loadUsers();
             } catch (error) {
@@ -179,46 +248,54 @@
             }
         }
 
-        async function handleLogin(event) {
-            event.preventDefault();
-            loginError.textContent = '';
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            try {
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.message || 'Login failed');
-                state.token = data.token;
-                localStorage.setItem(TOKEN_KEY, data.token);
-                toggleView();
-            } catch (error) {
-                loginError.textContent = error.message;
-            }
-        }
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                signInWithEmailAndPassword(auth, email, password)
+                    .catch(error => {
+                        document.getElementById('login-error').textContent = error.message;
+                    });
+            });
 
-        function handleLogout() {
-            state.token = null;
-            state.currentUser = null;
-            localStorage.removeItem(TOKEN_KEY);
-            toggleView();
-        }
+            logoutButton.addEventListener('click', () => signOut(auth));
 
-        async function loadUsers() {
-            userListLoading.style.display = 'block';
-            userTable.classList.add('hidden');
-            try {
-                const response = await fetchWithAuth('/api/users');
-                if (!response.ok) throw new Error('Failed to fetch users');
-                const data = await response.json();
-                state.users = data;
-                renderUsers();
-            } catch (error) {
-                console.error(error);
-                userListLoading.textContent = 'Failed to load users.';
+            // Show/hide depot field based on role selection
+            newRoleSelect.addEventListener('change', () => {
+                depotFieldContainer.style.display = newRoleSelect.value === 'timekeeper' ? 'block' : 'none';
+                document.getElementById('new-depot').required = newRoleSelect.value === 'timekeeper';
+            });
+            
+            // --- USER MANAGEMENT LOGIC ---
+            async function loadUsers() {
+                userListLoading.style.display = 'block';
+                userTable.classList.add('hidden');
+                
+                try {
+                    const snapshot = await getDocs(collection(db, 'users'));
+                    userTableBody.innerHTML = '';
+                    snapshot.forEach(doc => {
+                        const user = doc.data();
+                        const displayEmail = (user.email || user.username || user.name || doc.id || '').toString();
+                        const displayRole = (user.role || user.userRole || '—').toString();
+                        const displayDepot = (user.depot || user.depotName || user.location || 'N/A').toString();
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap">${displayEmail}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayRole}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${displayDepot}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <button class="text-red-600 hover:text-red-900 delete-user-btn" data-uid="${doc.id}">Delete</button>
+                            </td>
+                        `;
+                        userTableBody.appendChild(tr);
+                    });
+                    userListLoading.style.display = 'none';
+                    userTable.classList.remove('hidden');
+                } catch (error) {
+                    console.error("Error loading users:", error);
+                    userListLoading.textContent = 'Failed to load users.';
+                }
             }
         }
 
