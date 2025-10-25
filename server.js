@@ -37,6 +37,9 @@ const CONFIG = {
   adminPassword: process.env.ADMIN_PASSWORD || 'change-me-now',
 };
 
+const normalizeEmail = (value) =>
+  typeof value === 'string' ? value.trim().toLowerCase() : '';
+
 // --- FIREBASE ADMIN INITIALIZATION ---
 let firebaseAuth = null;
 
@@ -284,6 +287,8 @@ try {
     console.log(`Successfully imported ${busesToImport.length} buses.`);
   }
 
+  db.exec('UPDATE users SET email = LOWER(TRIM(email))');
+
   const userCountStmt = db.prepare('SELECT COUNT(*) as count FROM users');
   const { count: userCount } = userCountStmt.get();
   if (userCount === 0) {
@@ -291,7 +296,10 @@ try {
       `INSERT INTO users (email, role, depot, passwordHash, createdAt, updatedAt)
        VALUES (@email, @role, @depot, @passwordHash, @createdAt, @updatedAt)`
     );
-    const adminEmail = CONFIG.adminEmail.toLowerCase();
+    const adminEmail = normalizeEmail(CONFIG.adminEmail);
+    if (!adminEmail) {
+      throw new Error('Default admin email is not configured. Set ADMIN_EMAIL to a valid address.');
+    }
     insertAdmin.run({
       email: adminEmail,
       role: 'admin',
@@ -376,31 +384,35 @@ const issueJwtForUser = (user) =>
   signJwt({ id: user.id, email: user.email, role: user.role, depot: user.depot });
 
 const syncAdminAccount = (email) => {
-  const emailLower = email.toLowerCase();
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    throw new Error('Invalid email provided for admin synchronization.');
+  }
   const now = nowIso();
-  const existing = getUserByEmail.get(emailLower);
+  const existing = getUserByEmail.get(normalizedEmail);
   const randomPassword = crypto.randomBytes(32).toString('hex');
   const passwordHash = existing?.passwordHash || hashPassword(randomPassword);
   const createdAt = existing?.createdAt || now;
   upsertAdminUser.run({
-    email: emailLower,
+    email: normalizedEmail,
     role: 'admin',
     depot: null,
     passwordHash,
     createdAt,
     updatedAt: now,
   });
-  return getUserByEmail.get(emailLower);
+  return getUserByEmail.get(normalizedEmail);
 };
 
 // --- AUTH ROUTES ---
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body || {};
-  if (!email || !password) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
   try {
-    const user = getUserByEmail.get(email.toLowerCase());
+    const user = getUserByEmail.get(normalizedEmail);
     if (!user || !verifyPassword(password, user.passwordHash)) {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
@@ -737,7 +749,9 @@ app.get('/api/users', authenticate, requireRole('admin'), (req, res) => {
 app.post('/api/users', authenticate, requireRole('admin'), (req, res) => {
   const { email, password, role, depot } = req.body || {};
   const errors = [];
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errors.push('Valid email is required');
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail))
+    errors.push('Valid email is required');
   if (!password || password.length < 8) errors.push('Password must be at least 8 characters long');
   if (!['admin', 'timekeeper'].includes(role)) errors.push('Role must be admin or timekeeper');
   if (role === 'timekeeper' && (!depot || !depot.trim())) errors.push('Depot is required for timekeepers');
@@ -745,7 +759,7 @@ app.post('/api/users', authenticate, requireRole('admin'), (req, res) => {
     return res.status(400).json({ message: 'Validation error', errors });
   }
   try {
-    const existing = getUserByEmail.get(email.toLowerCase());
+    const existing = getUserByEmail.get(normalizedEmail);
     if (existing) {
       return res.status(409).json({ message: 'A user with this email already exists.' });
     }
@@ -754,7 +768,7 @@ app.post('/api/users', authenticate, requireRole('admin'), (req, res) => {
        VALUES (@email, @role, @depot, @passwordHash, @createdAt, @updatedAt)`
     );
     const result = stmt.run({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       role,
       depot: depot ? depot.trim() : null,
       passwordHash: hashPassword(password),
