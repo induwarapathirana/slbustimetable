@@ -12,6 +12,10 @@
 </head>
 <body class="bg-gray-100 text-gray-800">
 
+    <div id="config-warning" class="hidden bg-yellow-100 border border-yellow-200 text-yellow-900 px-4 py-3 text-sm text-center">
+        Firebase configuration is missing. Update <code>firebaseConfig</code> before using the user management console.
+    </div>
+
     <div id="login-screen" class="min-h-screen flex items-center justify-center">
         <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
             <h2 class="text-2xl font-bold text-center mb-6">Admin Login</h2>
@@ -92,24 +96,11 @@
     </div>
 
     <script type="module">
-        import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-        import {
-            getFirestore,
-            collection,
-            doc,
-            getDoc,
-            getDocs,
-            limit,
-            query,
-            where
-        } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+    import { getFirestore, collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-        // This is the correct format. Just paste your values here.
-        // --- Firebase bootstrap -------------------------------------------------
-        // Paste your Firebase project configuration here. Keeping the same keys
-        // ensures the user provisioning helpers keep working without edits.
-        const firebaseConfig = {
+    const firebaseConfig = {
         apiKey: "AIzaSyArXmYmU6l4t_xaNquhT0JUH4sG2ge3tZo",
         authDomain: "bustimetable-v2.firebaseapp.com",
         projectId: "bustimetable-v2",
@@ -117,11 +108,21 @@
         messagingSenderId: "665985152111",
         appId: "1:665985152111:web:291020ebb619374c4f899a",
         measurementId: "G-0EEKT7RR6R"
-        };
+    };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
+    const configWarning = document.getElementById('config-warning');
+    if (!firebaseConfig.apiKey) {
+        configWarning?.classList.remove('hidden');
+        console.warn('Firebase configuration is missing. User management halted.');
+    } else {
+        initUserManagement();
+    }
+
+    function initUserManagement() {
+        const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
         const TOKEN_KEY = 'slbustimetable:token';
         const state = {
             token: localStorage.getItem(TOKEN_KEY) || null,
@@ -129,21 +130,90 @@
             users: []
         };
 
-            // Re-use an existing Firebase app if another dashboard initialised it;
-            // otherwise create a fresh instance for the user management console.
-            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
+        const loginScreen = document.getElementById('login-screen');
+        const dashboard = document.getElementById('dashboard');
+        const loginForm = document.getElementById('login-form');
+        const logoutButton = document.getElementById('logout-button');
+        const loginError = document.getElementById('login-error');
 
-        function toggleView() {
-            const isAuthenticated = Boolean(state.token);
-            if (isAuthenticated) {
-                loginScreen.classList.add('hidden');
-                dashboard.classList.remove('hidden');
-                fetchProfile();
+        const addUserForm = document.getElementById('add-user-form');
+        const addUserMessage = document.getElementById('add-user-message');
+        const newRoleSelect = document.getElementById('new-role');
+        const newDepotInput = document.getElementById('new-depot');
+        const depotFieldContainer = document.getElementById('depot-field-container');
+
+        const userTable = document.getElementById('user-table');
+        const userTableBody = document.getElementById('user-table-body');
+        const userListLoading = document.getElementById('user-list-loading');
+
+        function setToken(token) {
+            state.token = token;
+            if (token) {
+                localStorage.setItem(TOKEN_KEY, token);
             } else {
-                loginScreen.classList.remove('hidden');
-                dashboard.classList.add('hidden');
+                localStorage.removeItem(TOKEN_KEY);
+            }
+        }
+
+        function setCurrentUser(user) {
+            state.currentUser = user || null;
+        }
+
+        function showDashboard() {
+            loginScreen.classList.add('hidden');
+            dashboard.classList.remove('hidden');
+        }
+
+        function showLogin(message = '') {
+            loginScreen.classList.remove('hidden');
+            dashboard.classList.add('hidden');
+            if (message !== undefined) {
+                loginError.textContent = message;
+            }
+        }
+
+        function renderUsers() {
+            userTableBody.innerHTML = '';
+            if (!state.users.length) {
+                userTable.classList.add('hidden');
+                userListLoading.textContent = 'No users found.';
+                userListLoading.style.display = 'block';
+                return;
+            }
+
+            userListLoading.style.display = 'none';
+            userTable.classList.remove('hidden');
+
+            state.users.forEach((user) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${user.email}</td>
+                    <td class="px-6 py-4 whitespace-nowrap capitalize">${user.role}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${user.depot || 'N/A'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                        <button class="text-red-600 hover:text-red-900 delete-user-btn" data-id="${user.id}">Delete</button>
+                    </td>
+                `;
+                userTableBody.appendChild(row);
+            });
+        }
+
+        function clearSession() {
+            setToken(null);
+            setCurrentUser(null);
+            state.users = [];
+            renderUsers();
+        }
+
+        async function handleUnauthorized(message = 'Your session has expired. Please sign in again.') {
+            clearSession();
+            showLogin(message);
+            if (auth.currentUser) {
+                try {
+                    await signOut(auth);
+                } catch (error) {
+                    console.warn('Failed to sign out after unauthorized response:', error);
+                }
             }
         }
 
@@ -155,405 +225,26 @@
             }
             const response = await fetch(url, { ...options, headers });
             if (response.status === 401) {
-                handleLogout();
-                throw new Error('Unauthorized');
+                await handleUnauthorized();
             }
             return response;
         }
 
-            function normalizeRole(role) {
-                return (role || '').toString().trim().toLowerCase();
-            }
+        async function loadUsers() {
+            userListLoading.textContent = 'Loading users...';
+            userListLoading.style.display = 'block';
+            userTable.classList.add('hidden');
 
-            async function fetchUserProfile(user) {
-                if (!user) return null;
-                const email = (user.email || '').trim();
-                const emailLower = email.toLowerCase();
-
-                const usersCollection = collection(db, 'users');
-
-                const tryDoc = async (docId) => {
-                    if (!docId) return null;
-                    const docRef = doc(usersCollection, docId);
-                    const docSnap = await getDoc(docRef);
-                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
-                };
-
-            // Re-use an existing Firebase app if another dashboard initialised it;
-            // otherwise create a fresh instance for the user management console.
-            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-
-                    if (email) {
-                        let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
-                        if (!snapshot.empty) {
-                            const docSnap = snapshot.docs[0];
-                            return { id: docSnap.id, ...docSnap.data() };
-                        }
-
-                        snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
-                        if (!snapshot.empty) {
-                            const docSnap = snapshot.docs[0];
-                            return { id: docSnap.id, ...docSnap.data() };
-                        }
-                    }
-
-                    return null;
-                } catch (error) {
-                    console.error('Error fetching user profile:', error);
-                    throw error;
-                }
-            }
-
-            function normalizeRole(role) {
-                const value = (role || '').toString().trim().toLowerCase();
-                if (value === 'administrator') return 'admin';
-                if (value === 'timekeepers') return 'timekeeper';
-                return value;
-            }
-
-            function extractRoleFromClaims(claims, allowedRoles) {
-                if (!claims) return '';
-                const sources = [
-                    claims.role,
-                    claims.userRole,
-                    claims.customRole,
-                    ...(Array.isArray(claims.roles) ? claims.roles : []),
-                    ...(Array.isArray(claims.permissions) ? claims.permissions : [])
-                ];
-                for (const entry of sources) {
-                    const normalized = normalizeRole(entry);
-                    if (!normalized) continue;
-                    if (!allowedRoles.length || allowedRoles.includes(normalized)) {
-                        return normalized;
-                    }
-                }
-                return '';
-            }
-
-            async function maybeBackfillEmailLower(usersCollection, profile, emailLower) {
-                if (!profile || !profile.id || !emailLower) return profile;
-                if ((profile.emailLower || '').toString().toLowerCase() === emailLower) {
-                    return profile;
-                }
-                try {
-                    await setDoc(doc(usersCollection, profile.id), { emailLower }, { merge: true });
-                    profile.emailLower = emailLower;
-                } catch (error) {
-                    console.warn('Unable to backfill lowercase email for user profile:', error);
-                }
-                return profile;
-            }
-
-            // Re-use an existing Firebase app if another dashboard initialised it;
-            // otherwise create a fresh instance for the user management console.
-            const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-
-            // DOM Elements
-            const loginScreen = document.getElementById('login-screen');
-            const dashboard = document.getElementById('dashboard');
-            const loginForm = document.getElementById('login-form');
-            const logoutButton = document.getElementById('logout-button');
-            const addUserForm = document.getElementById('add-user-form');
-            const addUserMessage = document.getElementById('add-user-message');
-            const userTable = document.getElementById('user-table');
-            const userTableBody = document.getElementById('user-table-body');
-            const userListLoading = document.getElementById('user-list-loading');
-            const newRoleSelect = document.getElementById('new-role');
-            const depotFieldContainer = document.getElementById('depot-field-container');
-
-            let currentUser = null;
-
-            function normalizeRole(role) {
-                const value = (role || '').toString().trim().toLowerCase();
-                if (value === 'administrator') return 'admin';
-                if (value === 'timekeepers') return 'timekeeper';
-                return value;
-            }
-
-            function extractRoleFromClaims(claims, allowedRoles) {
-                if (!claims) return '';
-                const sources = [
-                    claims.role,
-                    claims.userRole,
-                    claims.customRole,
-                    ...(Array.isArray(claims.roles) ? claims.roles : []),
-                    ...(Array.isArray(claims.permissions) ? claims.permissions : [])
-                ];
-                for (const entry of sources) {
-                    const normalized = normalizeRole(entry);
-                    if (!normalized) continue;
-                    if (!allowedRoles.length || allowedRoles.includes(normalized)) {
-                        return normalized;
-                    }
-                }
-                return '';
-            }
-
-            async function maybeBackfillEmailLower(usersCollection, profile, emailLower) {
-                if (!profile || !profile.id || !emailLower) return profile;
-                if ((profile.emailLower || '').toString().toLowerCase() === emailLower) {
-                    return profile;
-                }
-                try {
-                    await setDoc(doc(usersCollection, profile.id), { emailLower }, { merge: true });
-                    profile.emailLower = emailLower;
-                } catch (error) {
-                    console.warn('Unable to backfill lowercase email for user profile:', error);
-                }
-                return profile;
-            }
-
-            async function ensureProfileFromClaims(user, role) {
-                if (!user) return;
-                const usersCollection = collection(db, 'users');
-                const email = (user.email || '').trim();
-                const payload = {
-                    role,
-                    email,
-                    emailLower: email.toLowerCase(),
-                    displayName: user.displayName || '',
-                    syncedFromClaims: true,
-                    updatedAt: serverTimestamp()
-                };
-                try {
-                    await setDoc(doc(usersCollection, user.uid), payload, { merge: true });
-                } catch (error) {
-                    console.warn('Unable to seed Firestore profile from custom claims:', error);
-                }
-            }
-
-            async function resolveRole(user, allowedRoles) {
-                const profile = await fetchUserProfile(user);
-                const profileRole = normalizeRole(profile?.role);
-                if (profileRole && (!allowedRoles.length || allowedRoles.includes(profileRole))) {
-                    return { role: profileRole, profile };
-                }
-
-                try {
-                    const token = await user.getIdTokenResult(true);
-                    const claimRole = extractRoleFromClaims(token?.claims, allowedRoles);
-                    if (claimRole) {
-                        await ensureProfileFromClaims(user, claimRole);
-                        const refreshedProfile = profile || await fetchUserProfile(user);
-                        return { role: claimRole, profile: refreshedProfile || profile };
-                    }
-                } catch (error) {
-                    console.warn('Unable to resolve role from custom claims:', error);
-                }
-
-                return { role: profileRole || null, profile };
-            }
-
-            async function fetchUserProfile(user) {
-                if (!user) return null;
-                const email = (user.email || '').trim();
-                const emailLower = email.toLowerCase();
-
-                const usersCollection = collection(db, 'users');
-
-                const tryDoc = async (docId) => {
-                    if (!docId) return null;
-                    const docRef = doc(usersCollection, docId);
-                    const docSnap = await getDoc(docRef);
-                    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
-                };
-
-                try {
-                    let profile = await tryDoc(user.uid);
-                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
-
-                    profile = await tryDoc(email);
-                    if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
-
-                    if (emailLower !== email) {
-                        profile = await tryDoc(emailLower);
-                        if (profile) return maybeBackfillEmailLower(usersCollection, profile, emailLower);
-                    }
-
-                    if (email) {
-                        let snapshot = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
-                        if (!snapshot.empty) {
-                            const docSnap = snapshot.docs[0];
-                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
-                        }
-
-                        snapshot = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
-                        if (!snapshot.empty) {
-                            const docSnap = snapshot.docs[0];
-                            return maybeBackfillEmailLower(usersCollection, { id: docSnap.id, ...docSnap.data() }, emailLower);
-                        }
-                    }
-
-                    return null;
-                } catch (error) {
-                    console.error('Error fetching user profile:', error);
-                    throw error;
-                }
-            }
-
-            // --- AUTHENTICATION & ACCESS CONTROL ---
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    try {
-                        const { role } = await resolveRole(user, ['admin']);
-                        if (role === 'admin') {
-                            currentUser = user;
-                            loginScreen.classList.add('hidden');
-                            dashboard.classList.remove('hidden');
-                            loadUsers();
-                        } else {
-                            alert('Access Denied. You must be an administrator to view this page.');
-                            await signOut(auth);
-                        }
-                    } catch (error) {
-                        alert('Unable to verify your permissions. Please try again later.');
-                        await signOut(auth);
-                    }
-                } else {
-                    currentUser = null;
-                    loginScreen.classList.remove('hidden');
-                    dashboard.classList.add('hidden');
-                }
-                loadUsers();
-            } catch (error) {
-                console.error(error);
-                loginError.textContent = 'Failed to verify user. Please login again.';
-                handleLogout();
-            }
-        }
-
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                    document.getElementById('login-error').textContent = '';
-                } catch (error) {
-                    document.getElementById('login-error').textContent = error.message;
-                }
-            });
-
-            logoutButton.addEventListener('click', async () => {
-                try {
-                    await signOut(auth);
-                } catch (error) {
-                    console.error('Failed to sign out:', error);
-                }
-            });
-
-            // Show/hide depot field based on role selection
-            newRoleSelect.addEventListener('change', () => {
-                depotFieldContainer.style.display = newRoleSelect.value === 'timekeeper' ? 'block' : 'none';
-                document.getElementById('new-depot').required = newRoleSelect.value === 'timekeeper';
-            });
-            
-            // --- USER MANAGEMENT LOGIC ---
-            async function loadUsers() {
-                userListLoading.style.display = 'block';
-                userTable.classList.add('hidden');
-                
-                try {
-                    const snapshot = await getDocs(collection(db, 'users'));
-                    userTableBody.innerHTML = '';
-                    snapshot.forEach(doc => {
-                        const user = doc.data();
-                        const displayEmail = (user.email || user.username || user.name || doc.id || '').toString();
-                        const displayRole = (user.role || user.userRole || '—').toString();
-                        const displayDepot = (user.depot || user.depotName || user.location || 'N/A').toString();
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap">${displayEmail}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${displayRole}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">${displayDepot}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <button class="text-red-600 hover:text-red-900 delete-user-btn" data-uid="${doc.id}">Delete</button>
-                            </td>
-                        `;
-                        userTableBody.appendChild(tr);
-                    });
-                    userListLoading.style.display = 'none';
-                    userTable.classList.remove('hidden');
-                } catch (error) {
-                    console.error("Error loading users:", error);
-                    userListLoading.textContent = 'Failed to load users.';
-                }
-            }
-        }
-
-        function renderUsers() {
-            userTableBody.innerHTML = '';
-            if (!state.users.length) {
-                userListLoading.textContent = 'No users yet.';
-                return;
-            }
-            userListLoading.style.display = 'none';
-            userTable.classList.remove('hidden');
-            state.users.forEach(user => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${user.email}</td>
-                    <td class="px-6 py-4 whitespace-nowrap capitalize">${user.role}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${user.depot || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right">
-                        <button class="text-red-600 hover:text-red-900 delete-user-btn" data-id="${user.id}">Delete</button>
-                    </td>`;
-                userTableBody.appendChild(tr);
-            });
-        }
-
-        async function handleAddUser(event) {
-            event.preventDefault();
-            addUserMessage.textContent = '';
-            const email = document.getElementById('new-email').value.trim();
-            const password = document.getElementById('new-password').value;
-            const role = newRoleSelect.value;
-            const depot = newDepotInput.value.trim();
-            const payload = { email, password, role, depot: role === 'timekeeper' ? depot : null };
             try {
-                const response = await fetchWithAuth('/api/users', {
-                    method: 'POST',
-                    body: JSON.stringify(payload)
-                });
-                const data = await response.json();
+                const response = await fetchWithAuth('/api/users');
                 if (!response.ok) {
-                    throw new Error((data.errors && data.errors.join(', ')) || data.message || 'Failed to create user');
+                    throw new Error('Failed to load users.');
                 }
-                addUserMessage.textContent = `Created user ${data.email}.`;
-                addUserMessage.className = 'text-sm mt-4 text-green-600';
-                addUserForm.reset();
-                newRoleSelect.value = 'timekeeper';
-                toggleDepotField();
-                loadUsers();
+                state.users = await response.json();
+                renderUsers();
             } catch (error) {
-                addUserMessage.textContent = error.message;
-                addUserMessage.className = 'text-sm mt-4 text-red-600';
-            }
-        }
-
-        async function handleDeleteUser(event) {
-            if (!event.target.classList.contains('delete-user-btn')) return;
-            const id = Number(event.target.dataset.id);
-            if (!id || (state.currentUser && state.currentUser.id === id)) {
-                alert('You cannot delete this account.');
-                return;
-            }
-            if (!confirm('Delete this user?')) return;
-            try {
-                const response = await fetchWithAuth(`/api/users/${id}`, { method: 'DELETE' });
-                if (response.status === 204) {
-                    loadUsers();
-                } else {
-                    const data = await response.json();
-                    throw new Error(data.message || 'Failed to delete user');
-                }
-            } catch (error) {
-                alert(error.message);
+                console.error('Error loading users:', error);
+                userListLoading.textContent = 'Failed to load users.';
             }
         }
 
@@ -561,17 +252,261 @@
             const showDepot = newRoleSelect.value === 'timekeeper';
             depotFieldContainer.style.display = showDepot ? 'block' : 'none';
             newDepotInput.required = showDepot;
-            if (!showDepot) newDepotInput.value = '';
+            if (!showDepot) {
+                newDepotInput.value = '';
+            }
+        }
+
+        async function findAdminProfile(user) {
+            if (!user) return null;
+            const email = (user.email || '').trim();
+            const emailLower = email.toLowerCase();
+            const usersCollection = collection(db, 'users');
+
+            const docCandidates = [
+                doc(usersCollection, user.uid),
+                doc(usersCollection, emailLower),
+                doc(usersCollection, email)
+            ];
+
+            for (const candidate of docCandidates) {
+                if (!candidate.id) continue;
+                try {
+                    const snapshot = await getDoc(candidate);
+                    if (snapshot.exists()) {
+                        return { id: snapshot.id, ...snapshot.data() };
+                    }
+                } catch (error) {
+                    console.warn('Failed to read user profile candidate:', error);
+                }
+            }
+
+            try {
+                const byLower = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
+                if (!byLower.empty) {
+                    const match = byLower.docs[0];
+                    return { id: match.id, ...match.data() };
+                }
+            } catch (error) {
+                console.warn('Unable to query profile by lowercase email:', error);
+            }
+
+            try {
+                const byEmail = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
+                if (!byEmail.empty) {
+                    const match = byEmail.docs[0];
+                    return { id: match.id, ...match.data() };
+                }
+            } catch (error) {
+                console.warn('Unable to query profile by email:', error);
+            }
+
+            return null;
+        }
+
+        async function ensureAdminAccess(user) {
+            const profile = await findAdminProfile(user);
+            const role = (profile?.role || '').toString().toLowerCase();
+            if (role !== 'admin') {
+                throw new Error('You must be an administrator to access this page.');
+            }
+
+            const emailLower = (user.email || '').trim().toLowerCase();
+            if (profile && profile.id) {
+                try {
+                    await setDoc(doc(collection(db, 'users'), profile.id), {
+                        email: user.email || profile.email || '',
+                        emailLower,
+                        role: 'admin',
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                } catch (error) {
+                    console.warn('Unable to synchronize admin profile metadata:', error);
+                }
+            }
+
+            return profile;
+        }
+
+        async function verifyServerSession() {
+            const response = await fetchWithAuth('/api/me');
+            if (!response.ok) {
+                throw new Error('Unable to verify current user.');
+            }
+            const user = await response.json();
+            if (user.role !== 'admin') {
+                throw new Error('You do not have access to this page.');
+            }
+            setCurrentUser(user);
+            return user;
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            loginError.textContent = '';
+
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+
+            try {
+                const credential = await signInWithEmailAndPassword(auth, email, password);
+                await ensureAdminAccess(credential.user);
+
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.message || 'Unable to sign in.');
+                }
+                if (data.user?.role !== 'admin') {
+                    throw new Error('You must be an administrator to access this page.');
+                }
+
+                setToken(data.token);
+                setCurrentUser(data.user);
+                showDashboard();
+                await loadUsers();
+                loginForm.reset();
+            } catch (error) {
+                console.error('Login failed:', error);
+                await handleUnauthorized(error.message || 'Unable to sign in.');
+            }
+        }
+
+        async function handleLogout() {
+            clearSession();
+            try {
+                if (auth.currentUser) {
+                    await signOut(auth);
+                }
+            } catch (error) {
+                console.warn('Failed to sign out:', error);
+            }
+            showLogin('');
+        }
+
+        async function handleAddUser(event) {
+            event.preventDefault();
+            addUserMessage.textContent = '';
+            addUserMessage.className = 'text-sm mt-4';
+
+            const email = document.getElementById('new-email').value.trim();
+            const password = document.getElementById('new-password').value;
+            const role = newRoleSelect.value;
+            const depot = newDepotInput.value.trim();
+
+            const payload = {
+                email,
+                password,
+                role,
+                depot: role === 'timekeeper' ? depot : null
+            };
+
+            try {
+                const response = await fetchWithAuth('/api/users', {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    const errors = data.errors ? data.errors.join(', ') : data.message;
+                    throw new Error(errors || 'Failed to create user.');
+                }
+
+                addUserMessage.textContent = `Created user ${data.email}.`;
+                addUserMessage.classList.add('text-green-600');
+                addUserForm.reset();
+                newRoleSelect.value = 'timekeeper';
+                toggleDepotField();
+                await loadUsers();
+            } catch (error) {
+                console.error('Failed to create user:', error);
+                addUserMessage.textContent = error.message;
+                addUserMessage.classList.add('text-red-600');
+            }
+        }
+
+        async function handleDeleteUser(event) {
+            const button = event.target.closest('.delete-user-btn');
+            if (!button) return;
+
+            const id = Number(button.dataset.id);
+            if (!id) return;
+
+            if (state.currentUser && state.currentUser.id === id) {
+                alert('You cannot delete your own account.');
+                return;
+            }
+
+            if (!confirm('Delete this user?')) {
+                return;
+            }
+
+            try {
+                const response = await fetchWithAuth(`/api/users/${id}`, { method: 'DELETE' });
+                if (!response.ok && response.status !== 204) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data.message || 'Failed to delete user.');
+                }
+                await loadUsers();
+            } catch (error) {
+                console.error('Failed to delete user:', error);
+                alert(error.message);
+            }
+        }
+
+        async function handleAuthStateChange(user) {
+            if (!user) {
+                clearSession();
+                showLogin('');
+                return;
+            }
+
+            try {
+                await ensureAdminAccess(user);
+            } catch (error) {
+                console.error('Access denied:', error);
+                await handleUnauthorized(error.message || 'Access denied.');
+                return;
+            }
+
+            if (!state.token) {
+                showLogin('Please sign in to start a session.');
+                return;
+            }
+
+            try {
+                await verifyServerSession();
+                showDashboard();
+                await loadUsers();
+            } catch (error) {
+                console.error('Failed to restore session:', error);
+                await handleUnauthorized('Your session has expired. Please sign in again.');
+            }
+        }
+
+        function bootstrap() {
+            toggleDepotField();
+            if (!state.token) {
+                showLogin('');
+            }
         }
 
         loginForm.addEventListener('submit', handleLogin);
         logoutButton.addEventListener('click', handleLogout);
         addUserForm.addEventListener('submit', handleAddUser);
-        userTableBody.addEventListener('click', handleDeleteUser);
         newRoleSelect.addEventListener('change', toggleDepotField);
+        userTableBody.addEventListener('click', handleDeleteUser);
 
-        toggleDepotField();
-        toggleView();
+        onAuthStateChanged(auth, handleAuthStateChange);
+        bootstrap();
+    }
     </script>
 </body>
 </html>
