@@ -293,7 +293,8 @@
         query,
         serverTimestamp,
         setDoc,
-        where
+        where,
+        writeBatch
     } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -391,8 +392,11 @@
 
         const state = {
             buses: [],
-            sortable: null
+            sortable: null,
+            apiToken: null,
+            apiTokenExpiresAt: 0
         };
+        let apiTokenPromise = null;
 
         const actionMessageVariants = {
             info: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -430,6 +434,103 @@
             } catch {
                 return fallback;
             }
+        }
+
+        const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000;
+
+        function decodeJwt(token) {
+            if (!token) return null;
+            try {
+                const parts = token.split('.');
+                if (parts.length !== 3) return null;
+                const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+                const decoded = atob(padded);
+                return JSON.parse(decoded);
+            } catch {
+                return null;
+            }
+        }
+
+        function setApiToken(token) {
+            state.apiToken = token || null;
+            const payload = decodeJwt(token);
+            if (payload?.exp) {
+                state.apiTokenExpiresAt = payload.exp * 1000;
+            } else {
+                state.apiTokenExpiresAt = token ? Date.now() + 15 * 60 * 1000 : 0;
+            }
+        }
+
+        function clearApiToken() {
+            state.apiToken = null;
+            state.apiTokenExpiresAt = 0;
+            apiTokenPromise = null;
+        }
+
+        async function exchangeFirebaseToken(forceRefresh = false) {
+            if (!currentUser) {
+                throw new Error('Authentication required. Please sign in again.');
+            }
+
+            const idToken = await currentUser.getIdToken(forceRefresh);
+            const response = await fetch('/api/firebase-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken })
+            });
+            const data = await response.json().catch(() => null);
+            if (!response.ok || !data?.token) {
+                const message = (Array.isArray(data?.errors) && data.errors.length)
+                    ? data.errors.join(', ')
+                    : data?.message || 'Unable to start admin session.';
+                throw new Error(message);
+            }
+            setApiToken(data.token);
+            return state.apiToken;
+        }
+
+        function isTokenValid() {
+            if (!state.apiToken) return false;
+            if (!state.apiTokenExpiresAt) return true;
+            return Date.now() < (state.apiTokenExpiresAt - TOKEN_EXPIRY_BUFFER_MS);
+        }
+
+        async function ensureApiToken(forceRefresh = false) {
+            if (!currentUser) {
+                throw new Error('Authentication required. Please sign in again.');
+            }
+
+            if (!forceRefresh && isTokenValid()) {
+                return state.apiToken;
+            }
+
+            if (!apiTokenPromise) {
+                apiTokenPromise = exchangeFirebaseToken(forceRefresh);
+            }
+            try {
+                return await apiTokenPromise;
+            } finally {
+                apiTokenPromise = null;
+            }
+        }
+
+        async function fetchWithAuth(url, options = {}, retry = true) {
+            await ensureApiToken();
+
+            const headers = new Headers(options.headers || {});
+            if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+                headers.set('Content-Type', 'application/json');
+            }
+            headers.set('Authorization', `Bearer ${state.apiToken}`);
+
+            const response = await fetch(url, { ...options, headers });
+            if (response.status === 401 && retry) {
+                clearApiToken();
+                await ensureApiToken(true);
+                return fetchWithAuth(url, options, false);
+            }
+            return response;
         }
 
         const priceLookup = new Map();
@@ -1334,10 +1435,20 @@
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
+                currentUser = user;
                 try {
                     const { role } = await resolveRole(user, ['admin']);
                     if (role === 'admin') {
-                        currentUser = user;
+                        try {
+                            await ensureApiToken(true);
+                        } catch (tokenError) {
+                            console.error('Failed to obtain admin session token:', tokenError);
+                            const message = describeError(tokenError, 'Unable to establish admin session.');
+                            showActionMessage(message, 'error');
+                            clearApiToken();
+                            await signOut(auth);
+                            return;
+                        }
                         if (loginScreen) loginScreen.classList.add('hidden');
                         if (dashboard) dashboard.classList.remove('hidden');
                         clearActionMessage();
@@ -1347,6 +1458,7 @@
                         const denialMessage = 'Access Denied. You must be an administrator to view this page.';
                         alert(denialMessage);
                         showActionMessage(denialMessage, 'error');
+                        clearApiToken();
                         await signOut(auth);
                     }
                 } catch (error) {
@@ -1354,10 +1466,12 @@
                     alert(errorMessage);
                     const detail = describeError(error, '');
                     showActionMessage(detail ? `${errorMessage} ${detail}`.trim() : errorMessage, 'error');
+                    clearApiToken();
                     await signOut(auth);
                 }
             } else {
                 currentUser = null;
+                clearApiToken();
                 if (loginScreen) loginScreen.classList.remove('hidden');
                 if (dashboard) dashboard.classList.add('hidden');
                 if (unsubscribe) {
