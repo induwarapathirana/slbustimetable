@@ -256,7 +256,7 @@
             return response;
         }
 
-        const loadUsers = async () => {
+        async function loadUsers() {
             userListLoading.textContent = 'Loading users...';
             userListLoading.style.display = 'block';
             userTable.classList.add('hidden');
@@ -272,16 +272,16 @@
                 console.error('Error loading users:', error);
                 userListLoading.textContent = 'Failed to load users.';
             }
-        };
+        }
 
-        const toggleDepotField = () => {
+        function toggleDepotField() {
             const showDepot = newRoleSelect.value === 'timekeeper';
             depotFieldContainer.style.display = showDepot ? 'block' : 'none';
             newDepotInput.required = showDepot;
             if (!showDepot) {
                 newDepotInput.value = '';
             }
-        };
+        }
 
         async function findAdminProfile(user) {
             if (!user) return null;
@@ -367,7 +367,7 @@
             return user;
         }
 
-        const handleLogin = async (event) => {
+        async function handleLogin(event) {
             event.preventDefault();
             loginError.textContent = '';
 
@@ -401,9 +401,9 @@
                 console.error('Login failed:', error);
                 await handleUnauthorized(error.message || 'Unable to sign in.');
             }
-        };
+        }
 
-        const handleLogout = async () => {
+        async function handleLogout() {
             clearSession();
             try {
                 if (auth.currentUser) {
@@ -413,9 +413,9 @@
                 console.warn('Failed to sign out:', error);
             }
             showLogin('');
-        };
+        }
 
-        const handleAddUser = async (event) => {
+        async function handleAddUser(event) {
             event.preventDefault();
             addUserMessage.textContent = '';
             addUserMessage.className = 'text-sm mt-4';
@@ -456,9 +456,9 @@
                 addUserMessage.textContent = error.message;
                 addUserMessage.classList.add('text-red-600');
             }
-        };
+        }
 
-        const handleDeleteUser = async (event) => {
+        async function handleDeleteUser(event) {
             const button = event.target.closest('.delete-user-btn');
             if (!button) return;
 
@@ -485,9 +485,9 @@
                 console.error('Failed to delete user:', error);
                 alert(error.message);
             }
-        };
+        }
 
-        const handleAuthStateChange = async (user) => {
+        async function handleAuthStateChange(user) {
             if (!user) {
                 clearSession();
                 showLogin('');
@@ -515,9 +515,9 @@
                 console.error('Failed to restore session:', error);
                 await handleUnauthorized('Your session has expired. Please sign in again.');
             }
-        };
+        }
 
-        const bootstrap = () => {
+        function bootstrap() {
             toggleDepotField();
 
             // Event bindings
@@ -532,7 +532,7 @@
             if (!state.token) {
                 showLogin('');
             }
-        };
+        }
 
         bootstrap();
 
