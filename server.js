@@ -456,7 +456,7 @@ app.post('/api/firebase-login', async (req, res) => {
     if (!normalized) {
       return res.status(400).json({ message: 'Firebase account email is invalid.' });
     }
-    const user = syncAdminAccount(trimmedEmail);
+    const user = syncAdminAccount(normalized);
     if (!user) {
       return res.status(500).json({ message: 'Unable to provision admin account.' });
     }
