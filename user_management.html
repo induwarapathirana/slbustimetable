@@ -171,6 +171,7 @@
             return;
         }
 
+        // Helper functions scoped within initUserManagement so they can access shared DOM handles/state
         function setToken(token) {
             state.token = token;
             if (token) {
@@ -523,6 +524,7 @@
             }
         }
 
+        // Event bindings
         loginForm.addEventListener('submit', handleLogin);
         logoutButton.addEventListener('click', handleLogout);
         addUserForm.addEventListener('submit', handleAddUser);
@@ -533,7 +535,6 @@
         bootstrap();
 
     }
-
     </script>
 </body>
 </html>
