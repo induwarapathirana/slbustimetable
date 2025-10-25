@@ -293,6 +293,7 @@
         query,
         serverTimestamp,
         setDoc,
+        updateDoc,
         where,
         writeBatch
     } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
@@ -392,9 +393,7 @@
 
         const state = {
             buses: [],
-            sortable: null,
-            apiToken: null,
-            apiTokenExpiresAt: 0
+            sortable: null
         };
         let apiTokenPromise = null;
 
@@ -434,103 +433,6 @@
             } catch {
                 return fallback;
             }
-        }
-
-        const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000;
-
-        function decodeJwt(token) {
-            if (!token) return null;
-            try {
-                const parts = token.split('.');
-                if (parts.length !== 3) return null;
-                const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-                const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
-                const decoded = atob(padded);
-                return JSON.parse(decoded);
-            } catch {
-                return null;
-            }
-        }
-
-        function setApiToken(token) {
-            state.apiToken = token || null;
-            const payload = decodeJwt(token);
-            if (payload?.exp) {
-                state.apiTokenExpiresAt = payload.exp * 1000;
-            } else {
-                state.apiTokenExpiresAt = token ? Date.now() + 15 * 60 * 1000 : 0;
-            }
-        }
-
-        function clearApiToken() {
-            state.apiToken = null;
-            state.apiTokenExpiresAt = 0;
-            apiTokenPromise = null;
-        }
-
-        async function exchangeFirebaseToken(forceRefresh = false) {
-            if (!currentUser) {
-                throw new Error('Authentication required. Please sign in again.');
-            }
-
-            const idToken = await currentUser.getIdToken(forceRefresh);
-            const response = await fetch('/api/firebase-login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ idToken })
-            });
-            const data = await response.json().catch(() => null);
-            if (!response.ok || !data?.token) {
-                const message = (Array.isArray(data?.errors) && data.errors.length)
-                    ? data.errors.join(', ')
-                    : data?.message || 'Unable to start admin session.';
-                throw new Error(message);
-            }
-            setApiToken(data.token);
-            return state.apiToken;
-        }
-
-        function isTokenValid() {
-            if (!state.apiToken) return false;
-            if (!state.apiTokenExpiresAt) return true;
-            return Date.now() < (state.apiTokenExpiresAt - TOKEN_EXPIRY_BUFFER_MS);
-        }
-
-        async function ensureApiToken(forceRefresh = false) {
-            if (!currentUser) {
-                throw new Error('Authentication required. Please sign in again.');
-            }
-
-            if (!forceRefresh && isTokenValid()) {
-                return state.apiToken;
-            }
-
-            if (!apiTokenPromise) {
-                apiTokenPromise = exchangeFirebaseToken(forceRefresh);
-            }
-            try {
-                return await apiTokenPromise;
-            } finally {
-                apiTokenPromise = null;
-            }
-        }
-
-        async function fetchWithAuth(url, options = {}, retry = true) {
-            await ensureApiToken();
-
-            const headers = new Headers(options.headers || {});
-            if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
-                headers.set('Content-Type', 'application/json');
-            }
-            headers.set('Authorization', `Bearer ${state.apiToken}`);
-
-            const response = await fetch(url, { ...options, headers });
-            if (response.status === 401 && retry) {
-                clearApiToken();
-                await ensureApiToken(true);
-                return fetchWithAuth(url, options, false);
-            }
-            return response;
         }
 
         const priceLookup = new Map();
@@ -748,34 +650,32 @@
         }
 
         async function loadBuses() {
+            if (unsubscribe) {
+                unsubscribe();
+                unsubscribe = null;
+            }
+
             if (loading) {
                 loading.textContent = 'Loading timetable...';
                 loading.classList.remove('hidden');
             }
 
-            try {
-                const response = await fetchWithAuth('/api/buses');
-                const data = await response.json();
-                if (!response.ok) {
-                    const message = Array.isArray(data?.errors) && data.errors.length
-                        ? data.errors.join(', ')
-                        : data?.message || 'Failed to load buses.';
-                    throw new Error(message);
-                }
-                renderBusTable(data);
-            } catch (error) {
+            const busesQuery = query(collection(db, 'buses'), orderBy('sortOrder'));
+            unsubscribe = onSnapshot(busesQuery, snapshot => {
+                const buses = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+                renderBusTable(buses);
+            }, error => {
                 console.error('Error fetching buses:', error);
                 showActionMessage(`Failed to load timetable: ${describeError(error)}`, 'error');
                 if (loading) {
                     loading.textContent = 'Error loading data. Check console.';
                     loading.classList.remove('hidden');
                 }
-            }
+            });
         }
 
         async function handleReorder() {
             if (!busTableBody) return;
-
             const orderedIds = Array.from(busTableBody.querySelectorAll('tr'))
                 .map(row => row.dataset.id)
                 .filter(Boolean);
@@ -784,13 +684,20 @@
                 return;
             }
 
-            const batch = writeBatch(db);
-            orderedIds.forEach((id, index) => {
-                const ref = doc(db, 'buses', id);
-                batch.update(ref, { sortOrder: index + 1 });
-            });
+            const currentOrderMatches = orderedIds.every((id, index) => state.buses[index]?.id === id);
+            if (currentOrderMatches) {
+                return;
+            }
 
             try {
+                const batch = writeBatch(db);
+                orderedIds.forEach((id, index) => {
+                    batch.update(doc(db, 'buses', id), {
+                        sortOrder: index,
+                        updatedAt: serverTimestamp(),
+                        updatedBy: currentUser ? currentUser.uid : null
+                    });
+                });
                 await batch.commit();
                 showActionMessage('Timetable order updated successfully.', 'success');
             } catch (error) {
@@ -802,35 +709,24 @@
 
         async function handleEditBus(busId) {
             if (!busId) return;
-            const bus = state.buses.find(item => String(item.id) === String(busId));
-            if (!bus) {
-                showActionMessage('Unable to find the selected bus in the current timetable.', 'warning');
-                return;
+            try {
+                const docRef = doc(db, 'buses', busId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    openModal('Edit Bus', docSnap.data(), busId);
+                }
+            } catch (error) {
+                console.error('Failed to load bus for editing:', error);
+                showActionMessage(`Unable to load the selected bus: ${describeError(error)}`, 'error');
             }
-            openModal('Edit Bus', bus, bus.id);
         }
 
         async function handleDeleteBus(busId) {
             if (!busId) return;
             if (!confirm('Are you sure you want to delete this bus?')) return;
             try {
-                const response = await fetchWithAuth(`/api/buses/${busId}`, {
-                    method: 'DELETE'
-                });
-                if (!response.ok) {
-                    let errorMessage = 'Unable to delete the selected bus.';
-                    try {
-                        const data = await response.json();
-                        errorMessage = (Array.isArray(data?.errors) && data.errors.length)
-                            ? data.errors.join(', ')
-                            : data?.message || errorMessage;
-                    } catch (_) {
-                        // ignore body parse issues for non-JSON responses
-                    }
-                    throw new Error(errorMessage);
-                }
+                await deleteDoc(doc(db, 'buses', busId));
                 showActionMessage('Bus deleted successfully.', 'success');
-                await loadBuses();
             } catch (error) {
                 console.error('Failed to delete bus:', error);
                 showActionMessage(`Unable to delete the selected bus: ${describeError(error)}`, 'error');
@@ -1153,24 +1049,31 @@
                 try {
                     const busId = busForm.dataset.busId;
                     const isUpdate = Boolean(busId);
-                    const response = await fetchWithAuth(isUpdate ? `/api/buses/${busId}` : '/api/buses', {
-                        method: isUpdate ? 'PUT' : 'POST',
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await response.json().catch(() => null);
-                    if (!response.ok) {
-                        const message = (Array.isArray(data?.errors) && data.errors.length)
-                            ? data.errors.join(', ')
-                            : data?.message || 'Unable to save bus.';
-                        throw new Error(message);
+                    if (busId) {
+                        const updatePayload = {
+                            ...payload,
+                            status: busForm.dataset.originalStatus || 'Scheduled'
+                        };
+                        if (busForm.dataset.originalSortOrder) {
+                            updatePayload.sortOrder = Number(busForm.dataset.originalSortOrder);
+                        }
+                        await updateDoc(doc(db, 'buses', busId), updatePayload);
+                    } else {
+                        const busesCollection = collection(db, 'buses');
+                        const latestSnapshot = await getDocs(query(busesCollection, orderBy('sortOrder', 'desc'), limit(1)));
+                        const nextSortOrder = latestSnapshot.empty ? 0 : (Number(latestSnapshot.docs[0].data().sortOrder) || 0) + 1;
+                        await addDoc(busesCollection, {
+                            ...payload,
+                            status: 'Scheduled',
+                            sortOrder: nextSortOrder
+                        });
                     }
                     closeBusModal();
                     showActionMessage(isUpdate ? 'Bus updated successfully.' : 'Bus added successfully.', 'success');
-                    await loadBuses();
                 } catch (error) {
                     console.error('Failed to save bus:', error);
                     if (formError) {
-                        formError.textContent = error.message || 'Unable to save bus. Please try again.';
+                        formError.textContent = 'Unable to save bus. Please try again.';
                     }
                     showActionMessage(`Unable to save bus: ${describeError(error)}`, 'error');
                 }
@@ -1219,40 +1122,37 @@
                 }
 
                 try {
-                    let createdCount = 0;
-                    for (const departureTime of departures) {
-                        const response = await fetchWithAuth('/api/buses', {
-                            method: 'POST',
-                            body: JSON.stringify({
-                                route: routeBase,
-                                operator,
-                                departsFrom,
-                                arrivesAt,
-                                departureTime,
-                                arrivalTime: addMinutes(departureTime, duration),
-                                price,
-                                expresswayEntrance,
-                                expresswayExit,
-                                availability,
-                                stops
-                            })
+                    const busesCollection = collection(db, 'buses');
+                    const latestSnapshot = await getDocs(query(busesCollection, orderBy('sortOrder', 'desc'), limit(1)));
+                    let nextSortOrder = latestSnapshot.empty ? 0 : (Number(latestSnapshot.docs[0].data().sortOrder) || 0) + 1;
+
+                    const batch = writeBatch(db);
+                    departures.forEach(departureTime => {
+                        const docRef = doc(busesCollection);
+                        batch.set(docRef, {
+                            route: routeBase,
+                            operator,
+                            departsFrom,
+                            arrivesAt,
+                            departureTime,
+                            arrivalTime: addMinutes(departureTime, duration),
+                            price,
+                            expresswayEntrance,
+                            expresswayExit,
+                            availability,
+                            stops,
+                            status: 'Scheduled',
+                            sortOrder: nextSortOrder++
                         });
-                        const data = await response.json().catch(() => null);
-                        if (!response.ok) {
-                            const message = (Array.isArray(data?.errors) && data.errors.length)
-                                ? data.errors.join(', ')
-                                : data?.message || 'Failed to add bus.';
-                            throw new Error(message);
-                        }
-                        createdCount += 1;
-                    }
+                    });
+
+                    await batch.commit();
                     if (bulkAddMessage) {
-                        bulkAddMessage.textContent = `Added ${createdCount} departures.`;
+                        bulkAddMessage.textContent = `Added ${departures.length} departures.`;
                         bulkAddMessage.className = 'text-sm font-medium text-green-600';
                     }
                     closeBulkModal();
-                    showActionMessage(`Added ${createdCount} departures successfully.`, 'success');
-                    await loadBuses();
+                    showActionMessage(`Added ${departures.length} departures successfully.`, 'success');
                 } catch (error) {
                     console.error('Failed to bulk add buses:', error);
                     if (bulkAddMessage) {
@@ -1435,20 +1335,10 @@
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                currentUser = user;
                 try {
                     const { role } = await resolveRole(user, ['admin']);
                     if (role === 'admin') {
-                        try {
-                            await ensureApiToken(true);
-                        } catch (tokenError) {
-                            console.error('Failed to obtain admin session token:', tokenError);
-                            const message = describeError(tokenError, 'Unable to establish admin session.');
-                            showActionMessage(message, 'error');
-                            clearApiToken();
-                            await signOut(auth);
-                            return;
-                        }
+                        currentUser = user;
                         if (loginScreen) loginScreen.classList.add('hidden');
                         if (dashboard) dashboard.classList.remove('hidden');
                         clearActionMessage();
@@ -1458,7 +1348,6 @@
                         const denialMessage = 'Access Denied. You must be an administrator to view this page.';
                         alert(denialMessage);
                         showActionMessage(denialMessage, 'error');
-                        clearApiToken();
                         await signOut(auth);
                     }
                 } catch (error) {
@@ -1466,12 +1355,10 @@
                     alert(errorMessage);
                     const detail = describeError(error, '');
                     showActionMessage(detail ? `${errorMessage} ${detail}`.trim() : errorMessage, 'error');
-                    clearApiToken();
                     await signOut(auth);
                 }
             } else {
                 currentUser = null;
-                clearApiToken();
                 if (loginScreen) loginScreen.classList.remove('hidden');
                 if (dashboard) dashboard.classList.add('hidden');
                 if (unsubscribe) {
