@@ -296,7 +296,7 @@ try {
        VALUES (@email, @role, @depot, @passwordHash, @createdAt, @updatedAt)`
     );
     const email = CONFIG.adminEmail;
-    const normalized = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const normalized = normalizeEmail(email);
     if (!normalized) {
       throw new Error('Default admin email is not configured. Set ADMIN_EMAIL to a valid address.');
     }
@@ -387,7 +387,7 @@ const syncAdminAccount = (email) => {
   if (typeof email !== 'string') {
     throw new Error('Invalid email provided for admin synchronization.');
   }
-  const normalized = email.trim().toLowerCase();
+  const normalized = normalizeEmail(email);
   if (!normalized) {
     throw new Error('Invalid email provided for admin synchronization.');
   }
@@ -410,8 +410,7 @@ const syncAdminAccount = (email) => {
 // --- AUTH ROUTES ---
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body || {};
-  const trimmedEmail = typeof email === 'string' ? email.trim() : '';
-  const normalized = trimmedEmail.toLowerCase();
+  const normalized = normalizeEmail(email);
   if (!normalized || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
@@ -451,12 +450,11 @@ app.post('/api/firebase-login', async (req, res) => {
   }
 
   try {
-    const trimmedEmail = typeof decoded.email === 'string' ? decoded.email.trim() : '';
-    const normalized = trimmedEmail.toLowerCase();
+    const normalized = normalizeEmail(decoded.email);
     if (!normalized) {
       return res.status(400).json({ message: 'Firebase account email is invalid.' });
     }
-    const user = syncAdminAccount(trimmedEmail);
+    const user = syncAdminAccount(decoded.email);
     if (!user) {
       return res.status(500).json({ message: 'Unable to provision admin account.' });
     }
@@ -758,8 +756,7 @@ app.get('/api/users', authenticate, requireRole('admin'), (req, res) => {
 app.post('/api/users', authenticate, requireRole('admin'), (req, res) => {
   const { email, password, role, depot } = req.body || {};
   const errors = [];
-  const trimmedEmail = typeof email === 'string' ? email.trim() : '';
-  const normalized = trimmedEmail.toLowerCase();
+  const normalized = normalizeEmail(email);
   if (!normalized || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized))
     errors.push('Valid email is required');
   if (!password || password.length < 8) errors.push('Password must be at least 8 characters long');
