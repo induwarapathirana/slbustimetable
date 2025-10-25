@@ -31,9 +31,12 @@ if (fs.existsSync(envPath)) {
   });
 }
 
+const normalizeEmail = (value) =>
+  typeof value === 'string' ? value.trim().toLowerCase() : '';
+
 const CONFIG = {
   jwtSecret: process.env.JWT_SECRET || 'development-secret-change-me',
-  adminEmail: process.env.ADMIN_EMAIL || 'admin@example.com',
+  adminEmail: normalizeEmail(process.env.ADMIN_EMAIL || 'admin@example.com'),
   adminPassword: process.env.ADMIN_PASSWORD || 'change-me-now',
 };
 
@@ -292,11 +295,7 @@ try {
       `INSERT INTO users (email, role, depot, passwordHash, createdAt, updatedAt)
        VALUES (@email, @role, @depot, @passwordHash, @createdAt, @updatedAt)`
     );
-    const configuredAdminEmail = CONFIG.adminEmail;
-    const normalized =
-      typeof configuredAdminEmail === 'string'
-        ? configuredAdminEmail.trim().toLowerCase()
-        : '';
+    const normalized = CONFIG.adminEmail;
     if (!normalized) {
       throw new Error('Default admin email is not configured. Set ADMIN_EMAIL to a valid address.');
     }
@@ -362,9 +361,7 @@ const requireRole = (...roles) => (req, res, next) => {
   next();
 };
 
-const getUserByEmail = db.prepare(
-  'SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))'
-);
+const getUserByEmail = db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?');
 const getUserById = db.prepare('SELECT * FROM users WHERE id = ?');
 const upsertAdminUser = db.prepare(`
   INSERT INTO users (email, role, depot, passwordHash, createdAt, updatedAt)
@@ -386,10 +383,7 @@ const issueJwtForUser = (user) =>
   signJwt({ id: user.id, email: user.email, role: user.role, depot: user.depot });
 
 const syncAdminAccount = (email) => {
-  if (typeof email !== 'string') {
-    throw new Error('Invalid email provided for admin synchronization.');
-  }
-  const normalized = email.trim().toLowerCase();
+  const normalized = normalizeEmail(email);
   if (!normalized) {
     throw new Error('Invalid email provided for admin synchronization.');
   }
@@ -412,7 +406,7 @@ const syncAdminAccount = (email) => {
 // --- AUTH ROUTES ---
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body || {};
-  const normalized = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const normalized = normalizeEmail(email);
   if (!normalized || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
@@ -452,7 +446,7 @@ app.post('/api/firebase-login', async (req, res) => {
   }
 
   try {
-    const normalized = decoded.email.trim().toLowerCase();
+    const normalized = normalizeEmail(decoded.email);
     if (!normalized) {
       return res.status(400).json({ message: 'Firebase account email is invalid.' });
     }
@@ -758,7 +752,7 @@ app.get('/api/users', authenticate, requireRole('admin'), (req, res) => {
 app.post('/api/users', authenticate, requireRole('admin'), (req, res) => {
   const { email, password, role, depot } = req.body || {};
   const errors = [];
-  const normalized = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const normalized = normalizeEmail(email);
   if (!normalized || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized))
     errors.push('Valid email is required');
   if (!password || password.length < 8) errors.push('Password must be at least 8 characters long');
