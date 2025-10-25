@@ -519,19 +519,21 @@
 
         const bootstrap = () => {
             toggleDepotField();
+
+            // Event bindings
+            loginForm.addEventListener('submit', handleLogin);
+            logoutButton.addEventListener('click', handleLogout);
+            addUserForm.addEventListener('submit', handleAddUser);
+            newRoleSelect.addEventListener('change', toggleDepotField);
+            userTableBody.addEventListener('click', handleDeleteUser);
+
+            onAuthStateChanged(auth, handleAuthStateChange);
+
             if (!state.token) {
                 showLogin('');
             }
         };
 
-        // Event bindings
-        loginForm.addEventListener('submit', handleLogin);
-        logoutButton.addEventListener('click', handleLogout);
-        addUserForm.addEventListener('submit', handleAddUser);
-        newRoleSelect.addEventListener('change', toggleDepotField);
-        userTableBody.addEventListener('click', handleDeleteUser);
-
-        onAuthStateChanged(auth, handleAuthStateChange);
         bootstrap();
 
     }
