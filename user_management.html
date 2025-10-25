@@ -524,24 +524,7 @@
             }
         }
 
-        if (loginForm) {
-            loginForm.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                const email = document.getElementById('email').value;
-                const password = document.getElementById('password').value;
-                try {
-                    await signInWithEmailAndPassword(auth, email, password);
-                    const loginError = document.getElementById('login-error');
-                    if (loginError) loginError.textContent = '';
-                } catch (error) {
-                    console.error('Login failed:', error);
-                    const loginError = document.getElementById('login-error');
-                    const loginErrorMessage = error && error.message ? error.message : 'Unable to sign in. Please try again.';
-                    if (loginError) loginError.textContent = loginErrorMessage;
-                    showActionMessage(`Login failed: ${loginErrorMessage}`, 'error');
-                }
-            });
-        }
+        loginForm.addEventListener('submit', handleLogin);
         logoutButton.addEventListener('click', handleLogout);
         addUserForm.addEventListener('submit', handleAddUser);
         newRoleSelect.addEventListener('change', toggleDepotField);
