@@ -291,15 +291,16 @@ try {
       `INSERT INTO users (email, role, depot, passwordHash, createdAt, updatedAt)
        VALUES (@email, @role, @depot, @passwordHash, @createdAt, @updatedAt)`
     );
+    const adminEmail = CONFIG.adminEmail.toLowerCase();
     insertAdmin.run({
-      email: CONFIG.adminEmail,
+      email: adminEmail,
       role: 'admin',
       depot: null,
       passwordHash: hashPassword(CONFIG.adminPassword),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     });
-    console.log(`Provisioned default admin account for ${CONFIG.adminEmail}`);
+    console.log(`Provisioned default admin account for ${adminEmail}`);
   }
 } catch (err) {
   console.error('Database setup error:', err.message);
@@ -353,7 +354,7 @@ const requireRole = (...roles) => (req, res, next) => {
   next();
 };
 
-const getUserByEmail = db.prepare('SELECT * FROM users WHERE email = ?');
+const getUserByEmail = db.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)');
 const getUserById = db.prepare('SELECT * FROM users WHERE id = ?');
 const upsertAdminUser = db.prepare(`
   INSERT INTO users (email, role, depot, passwordHash, createdAt, updatedAt)
