@@ -6,6 +6,12 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+let firebaseAdmin = null;
+try {
+  firebaseAdmin = require('firebase-admin');
+} catch (err) {
+  console.warn('Firebase Admin SDK is not installed. Firebase login endpoint will be disabled.');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +35,71 @@ const CONFIG = {
   jwtSecret: process.env.JWT_SECRET || 'development-secret-change-me',
   adminEmail: process.env.ADMIN_EMAIL || 'admin@example.com',
   adminPassword: process.env.ADMIN_PASSWORD || 'change-me-now',
+};
+
+// --- FIREBASE ADMIN INITIALIZATION ---
+let firebaseAuth = null;
+
+const getFirebaseAuth = () => {
+  if (!firebaseAdmin) {
+    return null;
+  }
+  if (firebaseAuth) {
+    return firebaseAuth;
+  }
+
+  if (firebaseAdmin.apps.length) {
+    firebaseAuth = firebaseAdmin.auth();
+    return firebaseAuth;
+  }
+
+  const appOptions = {};
+  let credential = null;
+
+  const rawServiceAccount =
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+    (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
+      ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8')
+      : null);
+
+  if (rawServiceAccount) {
+    try {
+      const serviceAccount = JSON.parse(rawServiceAccount);
+      credential = firebaseAdmin.credential.cert(serviceAccount);
+      if (!appOptions.projectId && serviceAccount.project_id) {
+        appOptions.projectId = serviceAccount.project_id;
+      }
+    } catch (err) {
+      console.warn('Failed to parse FIREBASE_SERVICE_ACCOUNT:', err.message);
+    }
+  }
+
+  if (!credential) {
+    try {
+      credential = firebaseAdmin.credential.applicationDefault();
+    } catch (err) {
+      console.warn('Unable to use application default credentials for Firebase Admin:', err.message);
+    }
+  }
+
+  if (!credential) {
+    console.warn(
+      'Firebase Admin SDK not configured. Set FIREBASE_SERVICE_ACCOUNT or GOOGLE_APPLICATION_CREDENTIALS to enable Firebase login.'
+    );
+    return null;
+  }
+
+  if (!appOptions.projectId && process.env.FIREBASE_PROJECT_ID) {
+    appOptions.projectId = process.env.FIREBASE_PROJECT_ID;
+  }
+
+  const app = firebaseAdmin.initializeApp({
+    credential,
+    ...appOptions,
+  });
+
+  firebaseAuth = app.auth();
+  return firebaseAuth;
 };
 
 // --- HELPERS ---
@@ -284,6 +355,42 @@ const requireRole = (...roles) => (req, res, next) => {
 
 const getUserByEmail = db.prepare('SELECT * FROM users WHERE email = ?');
 const getUserById = db.prepare('SELECT * FROM users WHERE id = ?');
+const upsertAdminUser = db.prepare(`
+  INSERT INTO users (email, role, depot, passwordHash, createdAt, updatedAt)
+  VALUES (@email, @role, @depot, @passwordHash, @createdAt, @updatedAt)
+  ON CONFLICT(email) DO UPDATE SET
+    role = excluded.role,
+    depot = excluded.depot,
+    updatedAt = excluded.updatedAt
+`);
+
+const sanitizeUser = (user) => ({
+  id: user.id,
+  email: user.email,
+  role: user.role,
+  depot: user.depot,
+});
+
+const issueJwtForUser = (user) =>
+  signJwt({ id: user.id, email: user.email, role: user.role, depot: user.depot });
+
+const syncAdminAccount = (email) => {
+  const emailLower = email.toLowerCase();
+  const now = nowIso();
+  const existing = getUserByEmail.get(emailLower);
+  const randomPassword = crypto.randomBytes(32).toString('hex');
+  const passwordHash = existing?.passwordHash || hashPassword(randomPassword);
+  const createdAt = existing?.createdAt || now;
+  upsertAdminUser.run({
+    email: emailLower,
+    role: 'admin',
+    depot: null,
+    passwordHash,
+    createdAt,
+    updatedAt: now,
+  });
+  return getUserByEmail.get(emailLower);
+};
 
 // --- AUTH ROUTES ---
 app.post('/api/login', (req, res) => {
@@ -296,10 +403,46 @@ app.post('/api/login', (req, res) => {
     if (!user || !verifyPassword(password, user.passwordHash)) {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
-    const token = signJwt({ id: user.id, email: user.email, role: user.role, depot: user.depot });
-    res.json({ token, user: { id: user.id, email: user.email, role: user.role, depot: user.depot } });
+    const token = issueJwtForUser(user);
+    res.json({ token, user: sanitizeUser(user) });
   } catch (err) {
     res.status(500).json({ message: 'Unable to process login.' });
+  }
+});
+
+app.post('/api/firebase-login', async (req, res) => {
+  const { idToken } = req.body || {};
+  if (!idToken || typeof idToken !== 'string') {
+    return res.status(400).json({ message: 'Firebase ID token is required.' });
+  }
+
+  const auth = getFirebaseAuth();
+  if (!auth) {
+    return res.status(500).json({ message: 'Firebase login is not configured on the server.' });
+  }
+
+  let decoded;
+  try {
+    decoded = await auth.verifyIdToken(idToken, true);
+  } catch (err) {
+    console.warn('Failed to verify Firebase ID token:', err.message);
+    return res.status(401).json({ message: 'Invalid Firebase credentials.' });
+  }
+
+  if (!decoded.email) {
+    return res.status(400).json({ message: 'Firebase account is missing an email address.' });
+  }
+
+  try {
+    const user = syncAdminAccount(decoded.email);
+    if (!user) {
+      return res.status(500).json({ message: 'Unable to provision admin account.' });
+    }
+    const token = issueJwtForUser(user);
+    res.json({ token, user: sanitizeUser(user) });
+  } catch (err) {
+    console.error('Failed to synchronize Firebase admin account:', err);
+    res.status(500).json({ message: 'Unable to complete Firebase login.' });
   }
 });
 
@@ -500,15 +643,27 @@ app.get('/api/timekeeper/schedule/today', authenticate, requireRole('admin', 'ti
   if (!depot) {
     return res.status(400).json({ message: 'Depot is required' });
   }
-  const today = new Date().toLocaleString('en-US', { weekday: 'long' });
+
+  const isoDate = (req.query.date || '').trim();
+  let targetDate = new Date();
+  if (isoDate) {
+    const parsed = new Date(`${isoDate}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return res.status(400).json({ message: 'Invalid date format. Use YYYY-MM-DD.' });
+    }
+    targetDate = parsed;
+  }
+
+  const weekday = targetDate.toLocaleString('en-US', { weekday: 'long' });
+
   try {
     const stmt = db.prepare(
       `SELECT * FROM buses WHERE LOWER(departsFrom) = LOWER(?) AND (availability = '[]' OR availability LIKE '%' || ? || '%')
        ORDER BY departureTime ASC`
     );
-    const rows = stmt.all(depot, today).map(mapBusRow);
-    const filtered = rows.filter((bus) => !bus.availability.length || bus.availability.includes(today));
-    res.json({ depot, day: today, buses: filtered });
+    const rows = stmt.all(depot, weekday).map(mapBusRow);
+    const filtered = rows.filter((bus) => !bus.availability.length || bus.availability.includes(weekday));
+    res.json({ depot, day: weekday, date: isoDate || targetDate.toISOString().split('T')[0], buses: filtered });
   } catch (err) {
     res.status(500).json({ message: 'Unable to load schedule.' });
   }
