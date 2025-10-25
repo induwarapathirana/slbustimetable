@@ -37,9 +37,6 @@ const CONFIG = {
   adminPassword: process.env.ADMIN_PASSWORD || 'change-me-now',
 };
 
-const normalizeEmail = (value) =>
-  typeof value === 'string' ? value.trim().toLowerCase() : '';
-
 // --- FIREBASE ADMIN INITIALIZATION ---
 let firebaseAuth = null;
 
@@ -252,6 +249,7 @@ try {
     createdAt TEXT DEFAULT (datetime('now')),
     updatedAt TEXT DEFAULT (datetime('now'))
   )`);
+  db.exec('UPDATE users SET email = LOWER(TRIM(email))');
 
   const busCountStmt = db.prepare('SELECT COUNT(*) as count FROM buses');
   const { count } = busCountStmt.get();
@@ -287,8 +285,6 @@ try {
     console.log(`Successfully imported ${busesToImport.length} buses.`);
   }
 
-  db.exec('UPDATE users SET email = LOWER(TRIM(email))');
-
   const userCountStmt = db.prepare('SELECT COUNT(*) as count FROM users');
   const { count: userCount } = userCountStmt.get();
   if (userCount === 0) {
@@ -296,19 +292,23 @@ try {
       `INSERT INTO users (email, role, depot, passwordHash, createdAt, updatedAt)
        VALUES (@email, @role, @depot, @passwordHash, @createdAt, @updatedAt)`
     );
-    const adminEmail = normalizeEmail(CONFIG.adminEmail);
-    if (!adminEmail) {
+    const configuredAdminEmail = CONFIG.adminEmail;
+    const normalized =
+      typeof configuredAdminEmail === 'string'
+        ? configuredAdminEmail.trim().toLowerCase()
+        : '';
+    if (!normalized) {
       throw new Error('Default admin email is not configured. Set ADMIN_EMAIL to a valid address.');
     }
     insertAdmin.run({
-      email: adminEmail,
+      email: normalized,
       role: 'admin',
       depot: null,
       passwordHash: hashPassword(CONFIG.adminPassword),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     });
-    console.log(`Provisioned default admin account for ${adminEmail}`);
+    console.log(`Provisioned default admin account for ${normalized}`);
   }
 } catch (err) {
   console.error('Database setup error:', err.message);
@@ -362,7 +362,9 @@ const requireRole = (...roles) => (req, res, next) => {
   next();
 };
 
-const getUserByEmail = db.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)');
+const getUserByEmail = db.prepare(
+  'SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))'
+);
 const getUserById = db.prepare('SELECT * FROM users WHERE id = ?');
 const upsertAdminUser = db.prepare(`
   INSERT INTO users (email, role, depot, passwordHash, createdAt, updatedAt)
@@ -384,35 +386,38 @@ const issueJwtForUser = (user) =>
   signJwt({ id: user.id, email: user.email, role: user.role, depot: user.depot });
 
 const syncAdminAccount = (email) => {
-  const normalizedEmail = normalizeEmail(email);
-  if (!normalizedEmail) {
+  if (typeof email !== 'string') {
+    throw new Error('Invalid email provided for admin synchronization.');
+  }
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) {
     throw new Error('Invalid email provided for admin synchronization.');
   }
   const now = nowIso();
-  const existing = getUserByEmail.get(normalizedEmail);
+  const existing = getUserByEmail.get(normalized);
   const randomPassword = crypto.randomBytes(32).toString('hex');
   const passwordHash = existing?.passwordHash || hashPassword(randomPassword);
   const createdAt = existing?.createdAt || now;
   upsertAdminUser.run({
-    email: normalizedEmail,
+    email: normalized,
     role: 'admin',
     depot: null,
     passwordHash,
     createdAt,
     updatedAt: now,
   });
-  return getUserByEmail.get(normalizedEmail);
+  return getUserByEmail.get(normalized);
 };
 
 // --- AUTH ROUTES ---
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body || {};
-  const normalizedEmail = normalizeEmail(email);
-  if (!normalizedEmail || !password) {
+  const normalized = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!normalized || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
   try {
-    const user = getUserByEmail.get(normalizedEmail);
+    const user = getUserByEmail.get(normalized);
     if (!user || !verifyPassword(password, user.passwordHash)) {
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
@@ -447,7 +452,11 @@ app.post('/api/firebase-login', async (req, res) => {
   }
 
   try {
-    const user = syncAdminAccount(decoded.email);
+    const normalized = decoded.email.trim().toLowerCase();
+    if (!normalized) {
+      return res.status(400).json({ message: 'Firebase account email is invalid.' });
+    }
+    const user = syncAdminAccount(normalized);
     if (!user) {
       return res.status(500).json({ message: 'Unable to provision admin account.' });
     }
@@ -749,8 +758,8 @@ app.get('/api/users', authenticate, requireRole('admin'), (req, res) => {
 app.post('/api/users', authenticate, requireRole('admin'), (req, res) => {
   const { email, password, role, depot } = req.body || {};
   const errors = [];
-  const normalizedEmail = normalizeEmail(email);
-  if (!normalizedEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail))
+  const normalized = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!normalized || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalized))
     errors.push('Valid email is required');
   if (!password || password.length < 8) errors.push('Password must be at least 8 characters long');
   if (!['admin', 'timekeeper'].includes(role)) errors.push('Role must be admin or timekeeper');
@@ -759,7 +768,7 @@ app.post('/api/users', authenticate, requireRole('admin'), (req, res) => {
     return res.status(400).json({ message: 'Validation error', errors });
   }
   try {
-    const existing = getUserByEmail.get(normalizedEmail);
+    const existing = getUserByEmail.get(normalized);
     if (existing) {
       return res.status(409).json({ message: 'A user with this email already exists.' });
     }
@@ -768,7 +777,7 @@ app.post('/api/users', authenticate, requireRole('admin'), (req, res) => {
        VALUES (@email, @role, @depot, @passwordHash, @createdAt, @updatedAt)`
     );
     const result = stmt.run({
-      email: normalizedEmail,
+      email: normalized,
       role,
       depot: depot ? depot.trim() : null,
       passwordHash: hashPassword(password),
