@@ -146,6 +146,31 @@
         const userTableBody = document.getElementById('user-table-body');
         const userListLoading = document.getElementById('user-list-loading');
 
+        const requiredElements = {
+            loginScreen,
+            dashboard,
+            loginForm,
+            logoutButton,
+            loginError,
+            addUserForm,
+            addUserMessage,
+            newRoleSelect,
+            newDepotInput,
+            depotFieldContainer,
+            userTable,
+            userTableBody,
+            userListLoading
+        };
+
+        const missingElements = Object.entries(requiredElements)
+            .filter(([, element]) => !element)
+            .map(([name]) => name);
+
+        if (missingElements.length) {
+            console.error(`User management UI is missing required elements: ${missingElements.join(', ')}`);
+            return;
+        }
+
         function setToken(token) {
             state.token = token;
             if (token) {
@@ -507,7 +532,7 @@
 
         onAuthStateChanged(auth, handleAuthStateChange);
         bootstrap();
-    
+    }
     </script>
 </body>
 </html>
