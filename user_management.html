@@ -378,28 +378,48 @@
         async function handleLogin(event) {
             event.preventDefault();
             loginError.textContent = '';
-
+        
             const email = emailInput.value.trim();
             const password = passwordInput.value;
-
+        
             try {
+                // 1. Authenticate user with Firebase
                 const credential = await signInWithEmailAndPassword(auth, email, password);
-                await ensureAdminAccess(credential.user);
-
+                const user = credential.user;
+        
+                // 2. Ensure the user has an 'admin' role in your Firestore database
+                await ensureAdminAccess(user);
+        
+                // 3. Get the Firebase ID Token to send to your custom backend
+                const idToken = await user.getIdToken();
+        
+                // 4. Call your custom server login API with the Firebase ID Token
+                // Your server must verify this token to create a session token.
                 const response = await fetch('/api/login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+                    // Send the Firebase ID Token in the Authorization header
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}` 
+                    },
+                    // You don't need to send email/password in the body, the token is enough
+                    body: JSON.stringify({ email: user.email }) 
                 });
-
+        
                 const data = await response.json().catch(() => ({}));
+                
                 if (!response.ok) {
-                    throw new Error(data.message || 'Unable to sign in.');
+                    // Logout from Firebase if the custom server session fails
+                    await signOut(auth); 
+                    throw new Error(data.message || 'Server session failed. Unable to sign in.');
                 }
+                
                 if (data.user?.role !== 'admin') {
+                    await signOut(auth); 
                     throw new Error('You must be an administrator to access this page.');
                 }
-
+        
+                // 5. Store the custom server session token and proceed
                 setToken(data.token);
                 setCurrentUser(data.user);
                 showDashboard();
@@ -407,7 +427,8 @@
                 loginForm.reset();
             } catch (error) {
                 console.error('Login failed:', error);
-                await handleUnauthorized(error.message || 'Unable to sign in.');
+                // handleUnauthorized handles sign out and displaying the error message
+                await handleUnauthorized(error.message || 'Unable to sign in. Check credentials and server logs.');
             }
         }
 
