@@ -90,6 +90,25 @@
     <datalist id="timekeeper-location-options"></datalist>
 
     <script type="module">
+        import { getApp, getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+        import { getFirestore, collection, doc, getDoc, getDocs, limit, query, where } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyArXmYmU6l4t_xaNquhT0JUH4sG2ge3tZo",
+            authDomain: "bustimetable-v2.firebaseapp.com",
+            projectId: "bustimetable-v2",
+            storageBucket: "bustimetable-v2.firebasestorage.app",
+            messagingSenderId: "665985152111",
+            appId: "1:665985152111:web:291020ebb619374c4f899a",
+            measurementId: "G-0EEKT7RR6R"
+        };
+
+        const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const usersCollection = collection(db, 'users');
+
         const TOKEN_KEY = 'slbustimetable:token';
         const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
         const statusOptions = ['Scheduled', 'Departed', 'Arrived', 'Delayed', 'Cancelled'];
@@ -133,6 +152,71 @@
         const addExpresswayExitInput = document.getElementById('add-expresswayExit');
         const addStopsInput = document.getElementById('add-stops');
         const addAvailabilityContainer = document.getElementById('add-availability');
+
+        function waitForFirebaseUser() {
+            if (auth.currentUser) {
+                return Promise.resolve(auth.currentUser);
+            }
+
+            return new Promise(resolve => {
+                const unsubscribe = onAuthStateChanged(auth, user => {
+                    unsubscribe();
+                    resolve(user || null);
+                });
+            });
+        }
+
+        async function findUserProfile(user) {
+            if (!user?.email) return null;
+
+            const email = user.email.trim();
+            const emailLower = email.toLowerCase();
+
+            const candidateIds = [user.uid, emailLower, email].filter(Boolean);
+
+            for (const id of candidateIds) {
+                try {
+                    const candidate = doc(usersCollection, id);
+                    const snapshot = await getDoc(candidate);
+                    if (snapshot.exists()) {
+                        return { id: snapshot.id, ...snapshot.data() };
+                    }
+                } catch (error) {
+                    console.warn('Failed to read user profile candidate:', error);
+                }
+            }
+
+            try {
+                const byLower = await getDocs(query(usersCollection, where('emailLower', '==', emailLower), limit(1)));
+                if (!byLower.empty) {
+                    const match = byLower.docs[0];
+                    return { id: match.id, ...match.data() };
+                }
+            } catch (error) {
+                console.warn('Unable to query profile by lowercase email:', error);
+            }
+
+            try {
+                const byEmail = await getDocs(query(usersCollection, where('email', '==', email), limit(1)));
+                if (!byEmail.empty) {
+                    const match = byEmail.docs[0];
+                    return { id: match.id, ...match.data() };
+                }
+            } catch (error) {
+                console.warn('Unable to query profile by email:', error);
+            }
+
+            return null;
+        }
+
+        async function ensureTimekeeperAccess(user) {
+            const profile = await findUserProfile(user);
+            const role = (profile?.role || '').toString().toLowerCase();
+            if (!['timekeeper', 'admin'].includes(role)) {
+                throw new Error('Access denied. You do not have timekeeper permissions.');
+            }
+            return profile;
+        }
 
         function formatDate(date) {
             const year = date.getFullYear();
@@ -415,19 +499,37 @@
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             try {
+                const credential = await signInWithEmailAndPassword(auth, email, password);
+                const firebaseUser = credential.user;
+
+                try {
+                    await ensureTimekeeperAccess(firebaseUser);
+                } catch (accessError) {
+                    await signOut(auth).catch(() => {});
+                    setToken(null);
+                    showLogin(describeError(accessError, 'Access denied.'));
+                    return;
+                }
+
+                const idToken = await firebaseUser.getIdToken();
                 const response = await fetch('/api/login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`
+                    },
+                    body: JSON.stringify({ email: firebaseUser.email || email })
                 });
                 const data = await response.json().catch(() => null);
                 if (!response.ok) {
+                    await signOut(auth).catch(() => {});
                     const message = (Array.isArray(data?.errors) && data.errors.length)
                         ? data.errors.join(', ')
                         : data?.message || 'Login failed.';
                     throw new Error(message);
                 }
                 if (!['admin', 'timekeeper'].includes(data?.user?.role)) {
+                    await signOut(auth).catch(() => {});
                     throw new Error('Access denied. You do not have timekeeper permissions.');
                 }
                 setToken(data.token);
@@ -435,6 +537,13 @@
                 onAuthenticated();
             } catch (error) {
                 if (loginError) loginError.textContent = describeError(error, 'Login failed.');
+                if (auth.currentUser) {
+                    try {
+                        await signOut(auth);
+                    } catch (signOutError) {
+                        console.warn('Failed to clear Firebase session after login error:', signOutError);
+                    }
+                }
                 setToken(null);
             }
         }
@@ -445,6 +554,22 @@
                 return;
             }
             try {
+                const firebaseUser = await waitForFirebaseUser();
+                if (!firebaseUser) {
+                    setToken(null);
+                    showLogin('Please log in.');
+                    return;
+                }
+
+                try {
+                    await ensureTimekeeperAccess(firebaseUser);
+                } catch (accessError) {
+                    await signOut(auth).catch(() => {});
+                    setToken(null);
+                    showLogin(describeError(accessError, 'Access denied.'));
+                    return;
+                }
+
                 const response = await fetchWithAuth('/api/me');
                 const data = await response.json().catch(() => null);
                 if (!response.ok) {
@@ -457,8 +582,9 @@
                 onAuthenticated();
             } catch (error) {
                 console.warn('Unable to restore session:', error);
+                await signOut(auth).catch(() => {});
                 setToken(null);
-                showLogin();
+                showLogin(describeError(error, 'Session expired.'));
             }
         }
 
@@ -476,11 +602,16 @@
             loadSchedule();
         }
 
-        function handleLogout() {
+        async function handleLogout() {
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.warn('Unable to sign out from Firebase:', error);
+            }
             setToken(null);
             state.user = null;
             state.schedule = [];
-            scheduleContainer.innerHTML = '';
+            if (scheduleContainer) scheduleContainer.innerHTML = '';
             if (scheduleMessage) scheduleMessage.textContent = '';
             showLogin();
         }
