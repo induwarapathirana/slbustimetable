@@ -1,6 +1,277 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <title>Timekeeper Dashboard – SL Bus Timetable</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {font-family: system-ui, sans-serif; margin:0; padding:0; background:#f9f9f9;}
+    .container {max-width:1100px; margin:auto; padding:1rem;}
+    header {display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;}
+    .logout {background:#c62828; color:#fff; border:none; padding:.4rem .8rem; border-radius:4px; cursor:pointer;}
+    .card {background:#fff; border-radius:8px; padding:1.5rem; box-shadow:0 2px 6px rgba(0,0,0,.1); margin-bottom:1rem;}
+    .date-picker {margin-bottom:1rem;}
+    .date-picker input {padding:.5rem; font-size:1rem;}
+    table {width:100%; border-collapse:collapse;}
+    th, td {padding:.6rem; text-align:left; border-bottom:1px solid #eee;}
+    th {background:#eaeaea;}
+    .status-btn {padding:.3rem .6rem; margin:0 .2rem; border:none; border-radius:4px; cursor:pointer; font-size:.85rem;}
+    .status-scheduled {background:#4caf50; color:#fff;}
+    .status-departed  {background:#2196f3; color:#fff;}
+    .status-arrived   {background:#2e7d32; color:#fff;}
+    .status-delayed   {background:#ff9800; color:#fff;}
+    .status-cancelled {background:#d32f2f; color:#fff;}
+    .hidden {display:none;}
+    .error {color:#d32f2f; margin-top:.5rem;}
+    .loading {color:#555; font-style:italic;}
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Timekeeper Console</h1>
+    <button class="logout hidden" id="logoutBtn">Sign Out</button>
+  </header>
+
+  <!-- Login Card -->
+  <div id="loginCard" class="card">
+    <h2>Timekeeper Sign-In</h2>
+    <input type="email" id="email" placeholder="Email" required style="display:block;width:100%;margin:.5rem 0;padding:.5rem;">
+    <input type="password" id="password" placeholder="Password" required style="display:block;width:100%;margin:.5rem 0;padding:.5rem;">
+    <button id="loginBtn" style="background:#1976d2;color:#fff;border:none;padding:.5rem 1rem;border-radius:4px;cursor:pointer;">Sign In</button>
+    <p class="error hidden" id="loginError"></p>
+  </div>
+
+  <!-- Main Dashboard -->
+  <div id="dashCard" class="card hidden">
+    <div class="date-picker">
+      <label>Select Date: </label>
+      <input type="date" id="datePicker">
+    </div>
+
+    <div id="loadingMsg" class="loading">Loading schedule…</div>
+    <div id="noBuses" class="hidden">No buses scheduled for this date.</div>
+
+    <table id="scheduleTable" class="hidden">
+      <thead>
+        <tr>
+          <th>Route</th><th>Departs</th><th>Arrives</th><th>Operator</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <p class="error hidden" id="fetchError"></p>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
+<script>
+  // ==== YOUR CONFIG HERE ====
+  const firebaseConfig = {
+            apiKey: "AIzaSyArXmYmU6l4t_xaNquhT0JUH4sG2ge3tZo",
+            authDomain: "bustimetable-v2.firebaseapp.com",
+            projectId: "bustimetable-v2",
+            storageBucket: "bustimetable-v2.firebasestorage.app",
+            messagingSenderId: "665985152111",
+            appId: "1:665985152111:web:291020ebb619374c4f899a",
+            measurementId: "G-0EEKT7RR6R"
+        };
+  // ===========================
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db   = firebase.firestore();
+
+  // UI references
+  const loginCard   = document.getElementById('loginCard');
+  const dashCard    = document.getElementById('dashCard');
+  const loginBtn    = document.getElementById('loginBtn');
+  const logoutBtn   = document.getElementById('logoutBtn');
+  const emailInput  = document.getElementById('email');
+  const passInput   = document.getElementById('password');
+  const loginError  = document.getElementById('loginError');
+  const datePicker  = document.getElementById('datePicker');
+  const loadingMsg  = document.getElementById('loadingMsg');
+  const noBuses     = document.getElementById('noBuses');
+  const scheduleTbl = document.getElementById('scheduleTable');
+  const tbody       = scheduleTbl.querySelector('tbody');
+  const fetchError  = document.getElementById('fetchError');
+
+  let currentUserDepot = null;   // set after role check
+
+  // ---- Login ----
+  loginBtn.addEventListener('click', () => {
+    const email = emailInput.value.trim();
+    const pass  = passInput.value;
+    loginError.classList.add('hidden');
+    auth.signInWithEmailAndPassword(email, pass)
+      .catch(err => {
+        loginError.textContent = err.message;
+        loginError.classList.remove('hidden');
+      });
+  });
+
+  logoutBtn.addEventListener('click', () => auth.signOut());
+
+  // ---- Auth state ----
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      verifyTimekeeper(user.uid);
+    } else {
+      loginCard.classList.remove('hidden');
+      dashCard.classList.add('hidden');
+      logoutBtn.classList.add('hidden');
+    }
+  });
+
+  // ---- Verify role = timekeeper + fetch depot ----
+  async function verifyTimekeeper(uid) {
+    try {
+      const doc = await db.collection('users').doc(uid).get();
+      if (!doc.exists) throw new Error('No profile – ask admin to create /users/{uid}');
+      const data = doc.data();
+      if (data.role !== 'timekeeper') throw new Error('Access denied – timekeeper role required');
+      currentUserDepot = data.depot || null;
+
+      loginCard.classList.add('hidden');
+      dashCard.classList.remove('hidden');
+      logoutBtn.classList.remove('hidden');
+
+      // initialise date picker to today
+      const today = new Date().toISOString().split('T')[0];
+      datePicker.value = today;
+      datePicker.addEventListener('change', loadSchedule);
+      loadSchedule();
+    } catch (e) {
+      loginError.textContent = e.message;
+      loginError.classList.remove('hidden');
+      auth.signOut();
+    }
+  }
+
+  // ---- Load schedule for selected date ----
+  async function loadSchedule() {
+    const selected = datePicker.value;               // YYYY-MM-DD
+    if (!selected) return;
+    clearTable();
+    loadingMsg.classList.remove('hidden');
+    fetchError.classList.add('hidden');
+
+    try {
+      // 1. Get all buses that run on this weekday OR have a specialDate entry
+      const weekday = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(selected).getDay()];
+      const busesSnap = await db.collection('buses')
+        .where('availability', 'array-contains', weekday)
+        .get();
+
+      const specialSnap = await db.collection('buses')
+        .where('specialDates', 'array-contains', selected)
+        .get();
+
+      // Merge & dedupe
+      const busMap = new Map();
+      [...busesSnap.docs, ...specialSnap.docs].forEach(d => busMap.set(d.id, d));
+
+      // 2. Get any overrides for this exact date
+      const overridesSnap = await db.collection('busStatusOverrides')
+        .where('date', '==', selected)
+        .get();
+      const overrides = {};
+      overridesSnap.forEach(o => overrides[o.data().busId] = o.data());
+
+      // 3. Filter by depot if user has one
+      const buses = Array.from(busMap.values()).map(doc => {
+        const d = doc.data();
+        d.id = doc.id;
+        return d;
+      }).filter(bus => !currentUserDepot || bus.departsFrom === currentUserDepot);
+
+      if (buses.length === 0) {
+        loadingMsg.classList.add('hidden');
+        noBuses.classList.remove('hidden');
+        return;
+      }
+
+      noBuses.classList.add('hidden');
+      scheduleTbl.classList.remove('hidden');
+      buses.forEach(bus => addRow(bus, overrides[bus.id] || null, selected));
+    } catch (err) {
+      fetchError.textContent = err.message;
+      fetchError.classList.remove('hidden');
+    } finally {
+      loadingMsg.classList.add('hidden');
+    }
+  }
+
+  function clearTable() {
+    tbody.innerHTML = '';
+    scheduleTbl.classList.add('hidden');
+    noBuses.classList.add('hidden');
+  }
+
+  function addRow(bus, override, dateISO) {
+    const tr = document.createElement('tr');
+
+    const status = override ? override.status :
+                   (bus.status ? bus.status : 'Scheduled');
+
+    tr.innerHTML = `
+      <td>${bus.route || ''}</td>
+      <td>${bus.departureTime || ''}</td>
+      <td>${bus.arrivalTime || ''}</td>
+      <td>${bus.operator || ''}</td>
+      <td><span class="status-${status.toLowerCase().replace(' ','-')}">${status}</span></td>
+      <td>
+        <button class="status-btn status-scheduled" data-st="Scheduled">Scheduled</button>
+        <button class="status-btn status-departed"  data-st="Departed">Departed</button>
+        <button class="status-btn status-arrived"   data-st="Arrived">Arrived</button>
+        <button class="status-btn status-delayed"   data-st="Delayed">Delayed</button>
+        <button class="status-btn status-cancelled" data-st="Cancelled">Cancelled</button>
+      </td>
+    `;
+
+    // Click handlers
+    tr.querySelectorAll('.status-btn').forEach(btn => {
+      btn.addEventListener('click', () => setOverride(bus.id, dateISO, btn.dataset.st));
+    });
+
+    tbody.appendChild(tr);
+  }
+
+  // ---- Write day-specific override ----
+  async function setOverride(busId, dateISO, newStatus) {
+    const payload = {
+      busId,
+      date: dateISO,
+      depot: currentUserDepot || '',
+      status: newStatus,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: auth.currentUser.uid
+    };
+
+    try {
+      // Use merge to allow creating or updating the same doc
+      await db.collection('busStatusOverrides')
+        .doc(`${busId}_${dateISO}`)
+        .set(payload, { merge: true });
+      // Refresh row
+      loadSchedule();
+    } catch (err) {
+      alert('Failed to update status: ' + err.message);
+    }
+  }
+</script>
+</body>
+</html>
+<!--
+<!DOCTYPE html>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Time Keeper Panel</title>
@@ -635,4 +906,4 @@
         initializeFromToken();
     </script>
 </body>
-</html>
+</html> -->
